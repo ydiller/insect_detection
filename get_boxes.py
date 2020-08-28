@@ -2,7 +2,6 @@ import cv2 as cv
 import os
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import itertools
 
 SCALE_PERCENT = 10
@@ -67,23 +66,29 @@ def main():
     all_rectangles = []
     paths = []
     labels=[]
+    image_index=[] # index for all the images, all the boxes belongs to certain index have the same index.
+    count=0
     for root, dirs, files in os.walk(dr):
         for index, file in enumerate(files):
             if (file!='desktop.ini'): #get over windows problem
                 path = os.path.join(root, file)
                 src_gray = transformations(path)
-                label = file[7:9]
+                label = 1 if file[7:9] == 'cc' else 2
                 rectangles = thresh_callback(src_gray,80)
                 for rect in rectangles:
                     paths.append(path)
                     labels.append(label)
+                    image_index.append(count)
                 all_rectangles.append(rectangles)
+                count += 1
+
     all_rectangles = list(itertools.chain.from_iterable(all_rectangles))
     rect_arr=np.array(all_rectangles)
     paths_arr=np.array(paths)
     labels_arr=np.array(labels)
-    data=np.column_stack((paths_arr,rect_arr,labels_arr))
-    dataset = pd.DataFrame({'File path': data[:, 0], 'X': data[:, 1], 'Y': data[:, 2], 'W': data[:, 3], 'H': data[:, 4], 'Label': data[:, 5]})
+    index_arr = np.array(image_index)
+    data=np.column_stack((index_arr,paths_arr,rect_arr,labels_arr))
+    dataset = pd.DataFrame({'Index': data[:,0], 'File path': data[:, 1], 'X': data[:, 2], 'Y': data[:, 3], 'W': data[:, 4], 'H': data[:, 5], 'Label': data[:, 6]})
     dataset.to_csv(r'../bounding_boxes.csv',index=False)
 
     cv.waitKey(0)
