@@ -32,7 +32,7 @@ def main():
     dataset_val = FliesDataset(flies_dir + 'val', csv_val, get_transform(train=False))
     # define training and validation data loaders
     dataloader_train = torch.utils.data.DataLoader(
-        dataset_train, batch_size=2, shuffle=True, num_workers=4,
+        dataset_train, batch_size=1, shuffle=True, num_workers=4,
         collate_fn=utils.collate_fn)
     dataloader_val = torch.utils.data.DataLoader(
         dataset_val, batch_size=1, shuffle=False, num_workers=4,
@@ -42,7 +42,7 @@ def main():
     # plt.imshow(img.permute(1, 2, 0))
 
     # get the model using our helper function
-    model = fasterrcnn_resnet50_fpn(pretrained=False, progress=True, num_classes=2, pretrained_backnbone=True)
+    model = fasterrcnn_resnet50_fpn(pretrained=False, progress=True, num_classes=2, pretrained_backbone=True)
     # move model to the right device
     model.to(device)
 
