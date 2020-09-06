@@ -1,6 +1,7 @@
 import pandas as pd
 from PIL import Image
 import torch
+import numpy as np
 
 
 class FliesDataset(object):
@@ -25,6 +26,8 @@ class FliesDataset(object):
             label = row['Label']
             boxes.append([x, y, x + w, y + h])
             labels.append(label)
+        labels = np.asarray(labels)
+        labels = torch.from_numpy(labels.astype('long'))
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
         image_id = torch.tensor([idx])
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
