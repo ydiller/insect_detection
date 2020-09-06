@@ -15,12 +15,18 @@ def get_transform(train):
     return T.Compose(transforms)
 
 
+# main function for training. Reading data from csv file includes image paths and bounding boxes
+# for each image. creates separate datasets for train and val. building the model on top of
+# fasterRcnn resnet50 network.
+# on command line use: --data_directory '../data/' --csv_path '../bounding_boxes.csv'
 def main():
+    # load command line options
+    opt = utils.parse_flags()
     # train on the GPU or on the CPU, if a GPU is not available
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    flies_dir = '../data/bz/'
-    csv_train = '../bounding_boxes.csv'
-    csv_val = '../bounding_boxes.csv'
+    flies_dir = opt.data_directory
+    csv_train = opt.csv_path
+    csv_val = opt.csv_path
     num_classes = 2  # cc + bz
     dataset_train = FliesDataset(flies_dir + 'train', csv_train, get_transform(train=False))
     dataset_val = FliesDataset(flies_dir + 'val', csv_val, get_transform(train=False))
@@ -33,8 +39,7 @@ def main():
         collate_fn=utils.collate_fn)
 
     # img, target =dataset_train[3]
-    # plt.imshow(image[0].permute(1, 2, 0))
-    # plt.imshow(image[1].permute(1, 2, 0))
+    # plt.imshow(img.permute(1, 2, 0))
 
     # get the model using our helper function
     model = fasterrcnn_resnet50_fpn(pretrained=False, progress=True, num_classes=2, pretrained_backnbone=True)
