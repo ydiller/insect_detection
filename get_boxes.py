@@ -4,18 +4,14 @@ import numpy as np
 import pandas as pd
 import itertools
 import matplotlib.pyplot as plt
+import utils
 
-SCALE_PERCENT = 10
-UPPER_AREA_BOUNDARY = SCALE_PERCENT * 60
-LOWER_AREA_BOUNDARY = SCALE_PERCENT * 20
-
-
-def transformations(path):
+def transformations(path, opt):
     src = cv.imread(path)
     src_gray = cv.cvtColor(src, cv.COLOR_BGR2GRAY)
     src_gray = cv.bilateralFilter(src_gray, 5, 75, 75)
-    width = int(src_gray.shape[1] * SCALE_PERCENT / 100)
-    height = int(src_gray.shape[0] * SCALE_PERCENT / 100)
+    width = int(src_gray.shape[1] * opt.scale_percent / 100)
+    height = int(src_gray.shape[0] * opt.scale_percent / 100)
     dim = (width, height)
     src_gray = cv.resize(src_gray, dim, interpolation=cv.INTER_AREA)
     return src_gray
@@ -37,10 +33,10 @@ def intersect_over_union(bound_rect1, bound_rect2):
     return i / u
 
 
-def is_good_shape(bound_rect):
+def is_good_shape(bound_rect, opt):
     # Determine whether rectangle is in a good shape or not
-    if LOWER_AREA_BOUNDARY <= get_area(bound_rect) <= UPPER_AREA_BOUNDARY:
-        if bound_rect[2] < 7 * SCALE_PERCENT and bound_rect[3] < 7 * SCALE_PERCENT:
+    if opt.lower_boundary <= get_area(bound_rect) <= opt.upper_boundary:
+        if bound_rect[2] < opt.upper_width and bound_rect[3] < opt.upper_width:
             return True
     return False
 
@@ -55,21 +51,22 @@ def kill_overlapping_boxes(bound_rectangles):
                     bound_rectangles.remove(i)
 
 
-def thresh_callback(src_gray, threshold):
+def thresh_callback(src_gray, opt, threshold):
     canny_output = cv.Canny(src_gray, threshold, threshold * 2)
     contours, _ = cv.findContours(canny_output, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
     # con = cv.drawContours(src_gray, contours, -1, (0, 0, 255),3)
     bound_rectangles = []
-    scale = 100 / SCALE_PERCENT
+    scale = 100 / opt.scale_percent
     for c in contours:
         bound_rect = cv.boundingRect(cv.approxPolyDP(c, 3, True))
-        if is_good_shape(bound_rect):
+        if is_good_shape(bound_rect, opt):
             bound_rectangles.append((int(bound_rect[0] * scale), int(bound_rect[1] * scale),
                                      int(bound_rect[2] * scale), int(bound_rect[3] * scale)))
     kill_overlapping_boxes(bound_rectangles)
     return bound_rectangles
 
-def drawbox(csv_path,results_folder):
+
+def drawbox(csv_path, results_folder):
     df = pd.read_csv(csv_path)
     # names=df['File path'].unique().tolist()
     names = df['File path'].unique()
@@ -77,7 +74,7 @@ def drawbox(csv_path,results_folder):
     # df = df[1:84]
     for key in data_frame_dict.keys():
         data_frame_dict[key] = df[:][df['File path'] == key]
-        path = data_frame_dict[key].iloc[0][0]
+        path = data_frame_dict[key].iloc[0][1]
         img = cv.imread(path)
         img = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
         for index, row in data_frame_dict[key].iterrows():
@@ -88,8 +85,15 @@ def drawbox(csv_path,results_folder):
             img_with_rects = cv.rectangle(img, (x, y), (x + w, y + h), (0, 255, 255), 3)
         plt.imsave(results_folder + path[-15:-4] + '-high_quality.jpg', img_with_rects, cmap='gray')
 
+
+# Main function for finding bounding boxes of flies in the dataset, using canny algorithm.
+# The bounding boxes are written to a csv file (X,Y,W,H) including the image path.
+# The 'drawbox' function draws the bounding boxes over the dataset images.
+# on command line use: --scale percent 10  --upper_boundary 600  --lower_boundary 200
+# --upper_width 70 --results '../results/'  --data_directory '../data/  --csv_path '../bounding_boxes.csv'
 def main():
-    dr = "../bad_data/"
+    opt = utils.parse_flags()
+    dr = opt.data_directory
     all_rectangles = []
     paths = []
     labels = []
@@ -99,9 +103,9 @@ def main():
         for index, file in enumerate(files):
             if file != 'desktop.ini':  # get over windows problem
                 path = os.path.join(root, file)
-                src_gray = transformations(path)
+                src_gray = transformations(path, opt)
                 label = 1 if file[7:9] == 'cc' else 2
-                rectangles = thresh_callback(src_gray, 80)
+                rectangles = thresh_callback(src_gray, opt, threshold=80)
                 for rect in rectangles:
                     paths.append(path)
                     labels.append(label)
@@ -118,9 +122,8 @@ def main():
     dataset = pd.DataFrame(
         {'Index': data[:, 0], 'File path': data[:, 1], 'X': data[:, 2], 'Y': data[:, 3], 'W': data[:, 4],
          'H': data[:, 5], 'Label': data[:, 6]})
-    csv_path = '../bounding_boxes.csv'
-    dataset.to_csv(csv_path, index=False)
-    drawbox(csv_path, '../results/')
+    dataset.to_csv(opt.csv_path, index=False)
+    drawbox(opt.csv_path, opt.results)
 
     cv.waitKey(0)
     cv.destroyAllWindows()
