@@ -32,12 +32,14 @@ def resize_img_files(src, dst, img_shape=(512, 1024)):
         img = img.resize(img_shape)
         img.save(dst_p / (img_path.stem + img_path.suffix))
 
+
 def save_without_resize(src, dst):
     src_p = Path(src)
     dst_p = Path(dst)
     for img_path in src_p.glob("*.jpg"):
         img = Image.open(img_path)
         img.save(dst_p / (img_path.stem + img_path.suffix))
+
 
 def main():
     cc_train, cc_val, cc_test, bz_train, bz_val, bz_test = train_test_split("/images")

@@ -1,38 +1,29 @@
 import torch
 import torchvision
-from engine import train_one_epoch, evaluate
 import utils
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-from dataset import FliesDataset
+import matplotlib.pyplot as plt
+from torchvision.models.detection import fasterrcnn_resnet50_fpn
 import transforms as T
+from dataset import FliesDataset
+from engine import train_one_epoch, evaluate
 
-def get_instance_segmentation_model(num_classes):
-    # load an instance segmentation model pre-trained on COCO
-    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
-
-    # get the number of input features for the classifier
-    in_features = model.roi_heads.box_predictor.cls_score.in_features
-    # replace the pre-trained head with a new one
-    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
-
-    return model
 
 def get_transform(train):
-    transforms = []
-    transforms.append(T.ToTensor())
+    transforms = [T.ToTensor()]
     if train:
         transforms.append(T.RandomHorizontalFlip(0.5))
     return T.Compose(transforms)
 
 
 def main():
-
     # train on the GPU or on the CPU, if a GPU is not available
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    flies_dir
-    num_classes = 3  # cc + bz + background
-    dataset_train = FliesDataset(flies_dir, './bounding_boxes.csv', get_transform(train=True))
-    dataset_val = FliesDataset(flies_dir , './bounding_boxes_val.csv' , get_transform(train=False))
+    flies_dir = '../data/bz/'
+    csv_train = '../bounding_boxes.csv'
+    csv_val = '../bounding_boxes.csv'
+    num_classes = 2  # cc + bz
+    dataset_train = FliesDataset(flies_dir + 'train', csv_train, get_transform(train=False))
+    dataset_val = FliesDataset(flies_dir + 'val', csv_val, get_transform(train=False))
     # define training and validation data loaders
     dataloader_train = torch.utils.data.DataLoader(
         dataset_train, batch_size=2, shuffle=True, num_workers=4,
@@ -41,8 +32,12 @@ def main():
         dataset_val, batch_size=1, shuffle=False, num_workers=4,
         collate_fn=utils.collate_fn)
 
+    # img, target =dataset_train[3]
+    # plt.imshow(image[0].permute(1, 2, 0))
+    # plt.imshow(image[1].permute(1, 2, 0))
+
     # get the model using our helper function
-    model = get_instance_segmentation_model(num_classes)
+    model = fasterrcnn_resnet50_fpn(pretrained=False, progress=True, num_classes=2, pretrained_backnbone=True)
     # move model to the right device
     model.to(device)
 
@@ -62,6 +57,7 @@ def main():
         evaluate(model, dataloader_val, device=device)
 
     print("That's it!")
+
 
 if __name__ == '__main__':
     main()
