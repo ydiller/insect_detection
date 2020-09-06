@@ -4,7 +4,7 @@ import sklearn.model_selection as model_selection
 from PIL import Image
 
 
-# Create lists of the data splitted to train/val/test in [0.8:0.2:0.2] ratio
+# Create lists of the data split to train/val/test in [0.8:0.2:0.2] ratio
 def train_test_split(dir_path):
     cc_list = []
     bz_list = []
