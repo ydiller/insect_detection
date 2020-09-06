@@ -8,6 +8,7 @@ import time
 import torch
 import torch.distributed as dist
 
+import argparse
 import errno
 import os
 
@@ -308,3 +309,24 @@ def init_distributed_mode(args):
                                          world_size=args.world_size, rank=args.rank)
     torch.distributed.barrier()
     setup_for_distributed(args.rank == 0)
+
+
+# Handle flags.
+def parse_flags():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--scale_percent', default=10,
+                        help='scale to resize image')
+    parser.add_argument('--upper_boundary', default=600,
+                        help='upper boundary for box area')
+    parser.add_argument('--lower_boundary', default=200,
+                        help='lower boundary for box area')
+    parser.add_argument('--upper_width', default=70,
+                        help='upper boundary for box width and height')
+    parser.add_argument('--results', default='../results/',
+                        help='path for results of the bounding boxes image to be saved')
+    parser.add_argument('--data_directory', default='../data_samples/',
+                        help='path to data directory')
+    parser.add_argument('--csv_path', default='../bounding_boxes.csv',
+                        help='path for the csv file to be saved')
+    args = parser.parse_args()
+    return args
