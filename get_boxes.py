@@ -6,6 +6,7 @@ import itertools
 import matplotlib.pyplot as plt
 import utils
 
+
 def transformations(path, opt):
     src = cv.imread(path)
     src_gray = cv.cvtColor(src, cv.COLOR_BGR2GRAY)
@@ -41,14 +42,18 @@ def is_good_shape(bound_rect, opt):
     return False
 
 
-def kill_overlapping_boxes(bound_rectangles):
-    for i in bound_rectangles:
-        for j in bound_rectangles:
-            if intersect_over_union(i, j) > 0.4 and i != j:
-                if get_area(i) > get_area(j):
-                    bound_rectangles.remove(j)
+def kill_overlapping_boxes(bound_rectangles, threshold):
+    for i, rect1 in enumerate(bound_rectangles):
+        for j, rect2 in enumerate(bound_rectangles):
+            #print(intersect_over_union(rect1, rect2))
+            if intersect_over_union(rect1, rect2) > threshold and i != j:
+                #print('entered at ', intersect_over_union(rect1, rect2))
+                if get_area(rect1) > get_area(rect2):
+                    del bound_rectangles[j]
                 else:
-                    bound_rectangles.remove(i)
+                    del bound_rectangles[i]
+
+    return bound_rectangles
 
 
 def thresh_callback(src_gray, opt, threshold):
@@ -62,7 +67,7 @@ def thresh_callback(src_gray, opt, threshold):
         if is_good_shape(bound_rect, opt):
             bound_rectangles.append((int(bound_rect[0] * scale), int(bound_rect[1] * scale),
                                      int(bound_rect[2] * scale), int(bound_rect[3] * scale)))
-    kill_overlapping_boxes(bound_rectangles)
+    kill_overlapping_boxes(bound_rectangles, 0.4)
     return bound_rectangles
 
 
