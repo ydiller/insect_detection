@@ -96,31 +96,6 @@ def main():
 
     print("That's it!")
 
-    # test on one image
-    # model = model.eval()
-    # with torch.no_grad():
-    #     model = model.cuda()
-    #     pred = model([dataset_train[0][0].cuda()])
-    #     print(pred)
-    #
-    # pred_cls = list(pred[0]['labels'].cpu().numpy())
-    # boxes = list(pred[0]['boxes'].detach().cpu().numpy())
-    # scores = list(pred[0]['scores'].detach().cpu().numpy())
-    # img = cv.imread('../data_samples/train/set-01-cc-0.jpg.jpg')
-    # img = cv.resize(img, (448, 448), interpolation=cv.INTER_AREA)
-    # category_id_to_name = {1: 'cc', 2: 'bz'}
-    # for i in range(len(boxes)):
-    #     if scores[i] > 0.7:
-    #         x1 = int(boxes[i][0])
-    #         y1 = int(boxes[i][1])
-    #         x2 = int(boxes[i][2])
-    #         y2 = int(boxes[i][3])
-    #         class_name = category_id_to_name[pred_cls[i]]
-    #         cv.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 1)  # Draw Rectangle with the coordinates
-    #         cv.putText(img, class_name, (x1, y1), cv.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255),
-    #                    thickness=1)  # Write the prediction class
-    # cv.imwrite('../img.jpg', img)
-
 
 if __name__ == '__main__':
     main()
