@@ -324,9 +324,11 @@ def parse_flags():
                         help='upper boundary for box width and height')
     parser.add_argument('--results', default='../results/',
                         help='path for results of the bounding boxes image to be saved')
-    parser.add_argument('--data_directory', default='../data_samples/train/',
+    parser.add_argument('--data_directory', default='../data_samples/',
                         help='path to data directory')
-    parser.add_argument('--csv_path', default='../train_csv.csv',
-                        help='path for the csv file to be saved')
+    parser.add_argument('--csv_path', default='../bounding_boxes.csv',
+                        help='path of the csv file including the bounding boxes info')
+    parser.add_argument('--results_directory', default='../results/',
+                        help='path to results directory')
     args = parser.parse_args()
     return args
