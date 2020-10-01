@@ -128,7 +128,7 @@ def main():
         {'Index': data[:, 0], 'File path': data[:, 1], 'X': data[:, 2], 'Y': data[:, 3], 'W': data[:, 4],
          'H': data[:, 5], 'Label': data[:, 6]})
     dataset.to_csv(opt.csv_path, index=False)
-    drawbox(opt.csv_path, opt.results)
+    #drawbox(opt.csv_path, opt.results) # draw and save the images included in the csv file with the bboxes
 
     cv.waitKey(0)
     cv.destroyAllWindows()
