@@ -8,7 +8,7 @@ import cv2 as cv
 import numpy as np
 import albumentations as A
 from dataset import FliesDataset
-from engine import train_one_epoch, get_val_loss, evaluate
+from engine import train_one_epoch, get_val_loss, evaluate, get_accuracy
 
 
 def get_transform():
@@ -91,28 +91,32 @@ def main():
     loss_objectness = []
     loss_rpn_box_reg = []
     loss_val = []
-    #loss_val = []
+    train_acc_list = []
+    val_acc_list = []
+
     num_epochs = 100
     for epoch in range(num_epochs):
         # train for one epoch, printing every 10 iterations
         loss_dict, running_loss = train_one_epoch(model, optimizer, dataloader_train, device, epoch, print_freq=10)
         v_loss = get_val_loss(model, dataloader_val, device)
+        train_acc = get_accuracy(model, dataloader_train, device)
+        val_acc = get_accuracy(model, dataloader_val, device)
         # update the learning rate
         lr_scheduler.step()
         # evaluate on the test dataset
         evaluate(model, dataloader_val, device=device)
-        loss.append(running_loss / len(dataset_train))
-        loss_classifier.append(loss_dict['loss_classifier'].item() / len(dataset_train))
-        loss_box_reg.append(loss_dict['loss_box_reg'].item() / len(dataset_train))
-        loss_objectness.append(loss_dict['loss_objectness'].item() / len(dataset_train))
-        loss_rpn_box_reg.append(loss_dict['loss_rpn_box_reg'].item() / len(dataset_train))
-        loss_val.append(v_loss / len(dataset_val))
-        plt.plot(loss_val)
-        plt.savefig('../loss_val.jpg')
+        loss.append(running_loss)
+        loss_classifier.append(loss_dict['loss_classifier'].item())
+        loss_box_reg.append(loss_dict['loss_box_reg'].item())
+        loss_objectness.append(loss_dict['loss_objectness'].item())
+        loss_rpn_box_reg.append(loss_dict['loss_rpn_box_reg'].item())
+        loss_val.append(v_loss)
+        train_acc_list.append(train_acc)
+        val_acc_list.append(val_acc)
         #loss_val.append(loss_val / len(dataset_train))
     # plot loss info
     plt.figure()
-    plt.plot(loss, label="loss")
+    plt.plot(loss, label="Loss")
     plt.plot(loss_classifier, label="Classification loss")
     plt.plot(loss_box_reg, label="Bounding box regressor loss")
     plt.plot(loss_objectness, label="Object/background loss")
@@ -122,6 +126,12 @@ def main():
     plt.title('Loss vs epochs')
     plt.savefig('../loss.jpg')
 
+    plt.figure()
+    plt.plot(train_acc_list, label="Train accuracy")
+    plt.plot(val_acc_list, label="Validation accuracy")
+    plt.legend(loc="lower right")
+    plt.title('Classification accuracy vs epochs')
+    plt.savefig('../acc.jpg')
     print("That's it!")
 
     # make predictions on test images
