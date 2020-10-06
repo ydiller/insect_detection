@@ -23,6 +23,7 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
 
         lr_scheduler = utils.warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
 
+    running_loss = 0
     for images, targets in metric_logger.log_every(data_loader, print_freq, header):
         images = list(image.to(device) for image in images)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
@@ -35,6 +36,7 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
         losses_reduced = sum(loss for loss in loss_dict_reduced.values())
 
         loss_value = losses_reduced.item()
+        running_loss += loss_value
 
         if not math.isfinite(loss_value):
             print("Loss is {}, stopping training".format(loss_value))
@@ -51,11 +53,13 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
         metric_logger.update(loss=losses_reduced, **loss_dict_reduced)
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
 
-    return loss_dict_reduced, loss_value
+    running_loss = running_loss/len(data_loader)
+    return loss_dict_reduced, running_loss
 
 
 def get_val_loss(model, data_loader_val, device):
     model.train()
+    running_loss = 0
     for images, targets in data_loader_val:
         images = [image.to(device) for image in images]
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
@@ -66,8 +70,28 @@ def get_val_loss(model, data_loader_val, device):
             losses_reduced = sum(loss for loss in val_loss_dict_reduced.values())
 
             loss_value = losses_reduced.item()
-    return loss_value
+            running_loss += loss_value
 
+    running_loss = running_loss / len(data_loader_val)
+    return running_loss
+
+def get_accuracy(model, data_loader, device):
+    model.eval()
+    running_accuracy = 0
+    for images, targets in data_loader:
+        images = [image.to(device) for image in images]
+
+        with torch.no_grad():
+            model = model.cuda()
+            pred = model(images)
+
+        boxes = list(pred[0]['boxes'].detach().cpu().numpy())
+        scores = list(pred[0]['scores'].detach().cpu().numpy())
+        accuracy = sum(score for score in scores)/len(boxes)
+        running_accuracy += accuracy
+
+    running_accuracy = running_accuracy/len(data_loader)
+    return running_accuracy
 
 def _get_iou_types(model):
     model_without_ddp = model
