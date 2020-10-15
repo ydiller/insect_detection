@@ -20,7 +20,7 @@ def augmentations():
     return A.Compose([
         A.Resize(448, 448, interpolation=cv.INTER_AREA),
         A.Flip(p=0.50),
-    ],bbox_params=A.BboxParams(format='pascal_voc', label_fields=['category_ids']))
+    ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['category_ids']))
 
 
 def draw_bounding_box_from_dataloader(img, target):
@@ -113,6 +113,8 @@ def main():
     val_acc_list = []
 
     num_epochs = 50
+    prev_val_acc = -1
+
     for epoch in range(num_epochs):
         # train for one epoch, printing every 10 iterations
         loss_classifier, loss_box_reg, loss_objectness, loss_rpn_box_reg, loss = \
@@ -121,7 +123,17 @@ def main():
             get_val_loss(model, dataloader_val, device)
         train_acc = get_accuracy(model, dataloader_train, device)
         val_acc = get_accuracy(model, dataloader_val, device)
-        print('accuracy: ', train_acc, val_acc)
+
+        if val_acc >= prev_val_acc:
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optim_state_dict': optimizer.state_dict(),
+                'val_acc': val_acc,
+                'train_acc': train_acc
+            }, PATH)
+
+        print(f'train acc: {train_acc} | val acc: {val_acc}')
         # update the learning rate
         lr_scheduler.step()
         # evaluate on the test dataset

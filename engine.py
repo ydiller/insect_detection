@@ -46,8 +46,6 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
         loss_objectness += loss_dict_reduced['loss_objectness'].item()
         loss_rpn_box_reg += loss_dict_reduced['loss_rpn_box_reg'].item()
 
-
-
         if not math.isfinite(loss_value):
             print("Loss is {}, stopping training".format(loss_value))
             print(loss_dict_reduced)
@@ -100,6 +98,7 @@ def get_val_loss(model, data_loader_val, device):
     loss_rpn_box_reg = loss_rpn_box_reg/len(data_loader_val)
     return loss_classifier, loss_box_reg, loss_objectness, loss_rpn_box_reg, running_loss
 
+
 def get_scores(model, data_loader, device):
     model.eval()
     running_accuracy = 0
@@ -118,20 +117,22 @@ def get_scores(model, data_loader, device):
     running_accuracy = running_accuracy/len(data_loader)
     return running_accuracy
 
+
 def get_distance(predicted_center, gt_center):
     gt_x, gt_y = gt_center
     pred_x, pred_y = predicted_center
     distance = (pred_y - gt_y)**2 + (pred_x - gt_x)**2
     return distance
 
+
 def get_accuracy(model, data_loader, device, img_size=448):
     model.eval()
-    c=0
+    c = 0
     accuracy = []
     for images, targets in data_loader:
-        c+=1
+        c += 1
         images = [image.to(device) for image in images]
-        #targets = [target.to(device) for target in targets]
+        # targets = [target.to(device) for target in targets]
         running_accuracy = 0
 
         with torch.no_grad():
@@ -140,13 +141,13 @@ def get_accuracy(model, data_loader, device, img_size=448):
 
         labels = list(pred[0]['labels'].cpu().numpy())
         boxes = list(pred[0]['boxes'].detach().cpu().numpy())
-        #scores = list(pred[0]['scores'].detach().cpu().numpy())
+        # scores = list(pred[0]['scores'].detach().cpu().numpy())
 
         gt_boxes = targets[0]['boxes']
         gt_labels = targets[0]['labels']
         gt_boxes_center = []
         pred_boxes_center = []
-        #threshold_distance = (img_size / 100) ** 2 + (img_size / 100) ** 2
+        # threshold_distance = (img_size / 100) ** 2 + (img_size / 100) ** 2
         threshold_distance = 5
         for i in range(len(gt_boxes)):
             x1 = int(gt_boxes[i][0])
@@ -179,6 +180,7 @@ def get_accuracy(model, data_loader, device, img_size=448):
     total_accuracy = mean(accuracy)
 
     return total_accuracy
+
 
 def _get_iou_types(model):
     model_without_ddp = model
@@ -222,8 +224,6 @@ def evaluate(model, data_loader, device):
         coco_evaluator.update(res)
         evaluator_time = time.time() - evaluator_time
         metric_logger.update(model_time=model_time, evaluator_time=evaluator_time)
-
-
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()

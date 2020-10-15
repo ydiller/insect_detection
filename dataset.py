@@ -32,7 +32,7 @@ class FliesDataset(object):
             augmentations = self.augmentations(image=img, bboxes=boxes, category_ids=labels)
             img, boxes, labels = augmentations['image'], augmentations['bboxes'], augmentations['category_ids']
         labels = np.asarray(labels)
-        labels = torch.from_numpy(labels.astype('int64')) #original: 'long'
+        labels = torch.from_numpy(labels.astype('int64'))  # original: 'long'
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
         image_id = torch.tensor([idx])
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
@@ -42,8 +42,6 @@ class FliesDataset(object):
 
         if self.transforms is not None:
             img, target = self.transforms(img, target)
-
-
 
         return img, target
 
