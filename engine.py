@@ -2,9 +2,8 @@ import math
 import sys
 import time
 import torch
-
 import torchvision.models.detection.mask_rcnn
-
+from statistics import mean
 from coco_utils import get_coco_api_from_dataset
 from coco_eval import CocoEvaluator
 import utils
@@ -24,6 +23,11 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
         lr_scheduler = utils.warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
 
     running_loss = 0
+    loss_classifier = 0
+    loss_box_reg = 0
+    loss_objectness = 0
+    loss_rpn_box_reg = 0
+
     for images, targets in metric_logger.log_every(data_loader, print_freq, header):
         images = list(image.to(device) for image in images)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
@@ -34,9 +38,15 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
         # reduce losses over all GPUs for logging purposes
         loss_dict_reduced = utils.reduce_dict(loss_dict)
         losses_reduced = sum(loss for loss in loss_dict_reduced.values())
-
         loss_value = losses_reduced.item()
         running_loss += loss_value
+
+        loss_classifier += loss_dict_reduced['loss_classifier'].item()
+        loss_box_reg += loss_dict_reduced['loss_box_reg'].item()
+        loss_objectness += loss_dict_reduced['loss_objectness'].item()
+        loss_rpn_box_reg += loss_dict_reduced['loss_rpn_box_reg'].item()
+
+
 
         if not math.isfinite(loss_value):
             print("Loss is {}, stopping training".format(loss_value))
@@ -54,12 +64,20 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
 
     running_loss = running_loss/len(data_loader)
-    return loss_dict_reduced, running_loss
+    loss_classifier = loss_classifier/len(data_loader)
+    loss_box_reg = loss_box_reg/len(data_loader)
+    loss_objectness = loss_objectness/len(data_loader)
+    loss_rpn_box_reg = loss_rpn_box_reg/len(data_loader)
+    return loss_classifier, loss_box_reg, loss_objectness, loss_rpn_box_reg, running_loss
 
 
 def get_val_loss(model, data_loader_val, device):
     model.train()
     running_loss = 0
+    loss_classifier = 0
+    loss_box_reg = 0
+    loss_objectness = 0
+    loss_rpn_box_reg = 0
     for images, targets in data_loader_val:
         images = [image.to(device) for image in images]
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
@@ -68,14 +86,21 @@ def get_val_loss(model, data_loader_val, device):
             val_loss_dict = model(images, targets)
             val_loss_dict_reduced = utils.reduce_dict(val_loss_dict)
             losses_reduced = sum(loss for loss in val_loss_dict_reduced.values())
-
             loss_value = losses_reduced.item()
             running_loss += loss_value
+            loss_classifier += val_loss_dict_reduced['loss_classifier'].item()
+            loss_box_reg += val_loss_dict_reduced['loss_box_reg'].item()
+            loss_objectness += val_loss_dict_reduced['loss_objectness'].item()
+            loss_rpn_box_reg += val_loss_dict_reduced['loss_rpn_box_reg'].item()
 
     running_loss = running_loss / len(data_loader_val)
-    return running_loss
+    loss_classifier = loss_classifier/len(data_loader_val)
+    loss_box_reg = loss_box_reg/len(data_loader_val)
+    loss_objectness = loss_objectness/len(data_loader_val)
+    loss_rpn_box_reg = loss_rpn_box_reg/len(data_loader_val)
+    return loss_classifier, loss_box_reg, loss_objectness, loss_rpn_box_reg, running_loss
 
-def get_accuracy(model, data_loader, device):
+def get_scores(model, data_loader, device):
     model.eval()
     running_accuracy = 0
     for images, targets in data_loader:
@@ -92,6 +117,68 @@ def get_accuracy(model, data_loader, device):
 
     running_accuracy = running_accuracy/len(data_loader)
     return running_accuracy
+
+def get_distance(predicted_center, gt_center):
+    gt_x, gt_y = gt_center
+    pred_x, pred_y = predicted_center
+    distance = (pred_y - gt_y)**2 + (pred_x - gt_x)**2
+    return distance
+
+def get_accuracy(model, data_loader, device, img_size=448):
+    model.eval()
+    c=0
+    accuracy = []
+    for images, targets in data_loader:
+        c+=1
+        images = [image.to(device) for image in images]
+        #targets = [target.to(device) for target in targets]
+        running_accuracy = 0
+
+        with torch.no_grad():
+            model = model.cuda()
+            pred = model(images)
+
+        labels = list(pred[0]['labels'].cpu().numpy())
+        boxes = list(pred[0]['boxes'].detach().cpu().numpy())
+        #scores = list(pred[0]['scores'].detach().cpu().numpy())
+
+        gt_boxes = targets[0]['boxes']
+        gt_labels = targets[0]['labels']
+        gt_boxes_center = []
+        pred_boxes_center = []
+        #threshold_distance = (img_size / 100) ** 2 + (img_size / 100) ** 2
+        threshold_distance = 5
+        for i in range(len(gt_boxes)):
+            x1 = int(gt_boxes[i][0])
+            y1 = int(gt_boxes[i][1])
+            x2 = int(gt_boxes[i][2])
+            y2 = int(gt_boxes[i][3])
+            center = ((x1+x2)/2, (y1+y2)/2)
+            gt_boxes_center.append(center)
+
+        for i in range(len(boxes)):
+            x1 = int(boxes[i][0])
+            y1 = int(boxes[i][1])
+            x2 = int(boxes[i][2])
+            y2 = int(boxes[i][3])
+            center = ((x1+x2)/2, (y1+y2)/2)
+            pred_boxes_center.append(center)
+
+        for i, ctr in enumerate(gt_boxes_center):
+            distances = []
+            for j, p_ctr in enumerate(pred_boxes_center):
+                distances.append(get_distance(p_ctr, ctr))
+            min_index = distances.index(min(distances))
+            pred_label = labels[min_index]
+
+            if gt_labels[i] == pred_label:
+                if distances[min_index] < threshold_distance:
+                    running_accuracy += 1
+        accuracy.append(running_accuracy/len(gt_boxes))
+        #print(running_accuracy/len(gt_boxes), c)
+    total_accuracy = mean(accuracy)
+
+    return total_accuracy
 
 def _get_iou_types(model):
     model_without_ddp = model

@@ -17,8 +17,10 @@ def get_transform():
 
 
 def augmentations():
-    return A.Compose([A.Resize(448, 448, interpolation=cv.INTER_AREA)],
-                    bbox_params=A.BboxParams(format='pascal_voc', label_fields=['category_ids']))
+    return A.Compose([
+        A.Resize(448, 448, interpolation=cv.INTER_AREA),
+        A.Flip(p=0.50),
+    ],bbox_params=A.BboxParams(format='pascal_voc', label_fields=['category_ids']))
 
 
 def draw_bounding_box_from_dataloader(img, target):
@@ -40,6 +42,18 @@ def draw_bounding_box_from_dataloader(img, target):
                     thickness=1, lineType=cv.LINE_AA)  # Write the prediction class
     return img
 
+
+def plot_loss(loss, val_loss, title, filename,large_scale=False):
+    plt.figure()
+    plt.plot(loss, label="train")
+    plt.plot(val_loss, label="test")
+    plt.legend(loc="upper right")
+    plt.title(title)
+    if large_scale:
+        plt.ylim(0, 2)
+    else:
+        plt.ylim(0, 1)
+    plt.savefig(filename)
 
 # main function for training. Reading data from csv file includes image paths and bounding boxes
 # for each image. creates separate datasets for train and val. building the model on top of
@@ -85,53 +99,63 @@ def main():
     optimizer = torch.optim.SGD(params, lr=0.00008, momentum=0.9)
     # and a learning rate scheduler
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.90)
-    loss = []
-    loss_classifier = []
-    loss_box_reg = []
-    loss_objectness = []
-    loss_rpn_box_reg = []
+    loss_list = []
+    loss_classifier_list = []
+    loss_box_reg_list = []
+    loss_objectness_list = []
+    loss_rpn_box_reg_list = []
     loss_val = []
+    loss_classifier_val = []
+    loss_box_reg_val = []
+    loss_objectness_val = []
+    loss_rpn_box_reg_val = []
     train_acc_list = []
     val_acc_list = []
 
-    num_epochs = 100
+    num_epochs = 50
     for epoch in range(num_epochs):
         # train for one epoch, printing every 10 iterations
-        loss_dict, running_loss = train_one_epoch(model, optimizer, dataloader_train, device, epoch, print_freq=10)
-        v_loss = get_val_loss(model, dataloader_val, device)
+        loss_classifier, loss_box_reg, loss_objectness, loss_rpn_box_reg, loss = \
+            train_one_epoch(model, optimizer, dataloader_train, device, epoch, print_freq=10)
+        v_loss_classifier, v_loss_box_reg, v_loss_objectness, v_loss_rpn_box_reg, v_loss = \
+            get_val_loss(model, dataloader_val, device)
         train_acc = get_accuracy(model, dataloader_train, device)
         val_acc = get_accuracy(model, dataloader_val, device)
+        print('accuracy: ', train_acc, val_acc)
         # update the learning rate
         lr_scheduler.step()
         # evaluate on the test dataset
         evaluate(model, dataloader_val, device=device)
-        loss.append(running_loss)
-        loss_classifier.append(loss_dict['loss_classifier'].item())
-        loss_box_reg.append(loss_dict['loss_box_reg'].item())
-        loss_objectness.append(loss_dict['loss_objectness'].item())
-        loss_rpn_box_reg.append(loss_dict['loss_rpn_box_reg'].item())
+        loss_list.append(loss)
+        loss_classifier_list.append(loss_classifier)
+        loss_box_reg_list.append(loss_box_reg)
+        loss_objectness_list.append(loss_objectness)
+        loss_rpn_box_reg_list.append(loss_rpn_box_reg)
         loss_val.append(v_loss)
+        loss_classifier_val.append(v_loss_classifier)
+        loss_box_reg_val.append(v_loss_box_reg)
+        loss_objectness_val.append(v_loss_objectness)
+        loss_rpn_box_reg_val.append(v_loss_rpn_box_reg)
         train_acc_list.append(train_acc)
         val_acc_list.append(val_acc)
-        #loss_val.append(loss_val / len(dataset_train))
-    # plot loss info
-    plt.figure()
-    plt.plot(loss, label="Loss")
-    plt.plot(loss_classifier, label="Classification loss")
-    plt.plot(loss_box_reg, label="Bounding box regressor loss")
-    plt.plot(loss_objectness, label="Object/background loss")
-    plt.plot(loss_rpn_box_reg, label="RPN bounding box regressor loss")
-    plt.plot(loss_val, label="Validation loss")
-    plt.legend(loc="upper right")
-    plt.title('Loss vs epochs')
-    plt.savefig('../loss.jpg')
 
+    # plot loss info
+    plot_loss(loss_list, loss_val, "Loss (sum of losses)", opt.results_directory+"loss.jpg", large_scale=True)
+    plot_loss(loss_classifier_list, loss_classifier_val, "Classification loss",
+              opt.results_directory+"classification_loss.jpg")
+    plot_loss(loss_box_reg_list, loss_box_reg_val, "Bounding box regressor loss",
+              opt.results_directory+"bbox_regressor_loss.jpg")
+    plot_loss(loss_objectness_list, loss_objectness_val, "Object/background loss",
+              opt.results_directory+"objectness_loss.jpg")
+    plot_loss(loss_rpn_box_reg_list, loss_rpn_box_reg_val, "RPN bounding box regressor loss",
+              opt.results_directory+"rpn_loss.jpg")
     plt.figure()
     plt.plot(train_acc_list, label="Train accuracy")
     plt.plot(val_acc_list, label="Validation accuracy")
     plt.legend(loc="lower right")
     plt.title('Classification accuracy vs epochs')
     plt.savefig('../acc.jpg')
+
     print("That's it!")
 
     # make predictions on test images
