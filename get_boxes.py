@@ -58,7 +58,7 @@ def kill_overlapping_boxes(bound_rectangles, threshold):
 
 def thresh_callback(src_gray, opt, threshold):
     canny_output = cv.Canny(src_gray, threshold, threshold * 2)
-    contours, _ = cv.findContours(canny_output, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+    _, contours, _ = cv.findContours(canny_output, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
     # con = cv.drawContours(src_gray, contours, -1, (0, 0, 255),3)
     bound_rectangles = []
     scale = 100 / opt.scale_percent
@@ -111,10 +111,16 @@ def main():
                 src_gray = transformations(path, opt)
                 label = 1 if file[7:9] == 'cc' else 2
                 rectangles = thresh_callback(src_gray, opt, threshold=80)
+                txt_path = file[:-4]
+                bbox_file = open(opt.txt_path+txt_path+".txt", "w")
                 for rect in rectangles:
                     paths.append(path)
                     labels.append(label)
                     image_index.append(count)
+                    x, y, h, w = rect
+                    line = [f"{label} {x} {y} {h} {w}\n"]
+                    bbox_file.writelines(line)
+
                 all_rectangles.append(rectangles)
                 count += 1
 

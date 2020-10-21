@@ -336,5 +336,9 @@ def parse_flags():
                         help='path of the csv file including the test data bounding boxes info')
     parser.add_argument('--results_directory', default='../results/',
                         help='path to results directory')
+    parser.add_argument('--txt_path', default='../bounding_boxes/',
+                        help='path to bounding boxes txt files')
+    parser.add_argument('--model_path', default='../weights.pt',
+                        help='path to saved model')
     args = parser.parse_args()
     return args

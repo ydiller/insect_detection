@@ -46,8 +46,6 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
         loss_objectness += loss_dict_reduced['loss_objectness'].item()
         loss_rpn_box_reg += loss_dict_reduced['loss_rpn_box_reg'].item()
 
-
-
         if not math.isfinite(loss_value):
             print("Loss is {}, stopping training".format(loss_value))
             print(loss_dict_reduced)
@@ -100,6 +98,7 @@ def get_val_loss(model, data_loader_val, device):
     loss_rpn_box_reg = loss_rpn_box_reg/len(data_loader_val)
     return loss_classifier, loss_box_reg, loss_objectness, loss_rpn_box_reg, running_loss
 
+
 def get_scores(model, data_loader, device):
     model.eval()
     running_accuracy = 0
@@ -118,20 +117,37 @@ def get_scores(model, data_loader, device):
     running_accuracy = running_accuracy/len(data_loader)
     return running_accuracy
 
+
 def get_distance(predicted_center, gt_center):
     gt_x, gt_y = gt_center
     pred_x, pred_y = predicted_center
     distance = (pred_y - gt_y)**2 + (pred_x - gt_x)**2
     return distance
 
-def get_accuracy(model, data_loader, device, img_size=448):
+
+def intersect_over_union(bound_rect1, bound_rect2):
+
+    x1_1, y1_1, x1_2, y1_2 = bound_rect1
+    x2_1, y2_1, x2_2, y2_2 = bound_rect2
+    w1 = x1_2-x1_1
+    h1 = y1_2 - y1_1
+    w2 = x2_2 - x2_1
+    h2 = y2_2 - y2_1
+    w_intersection = min(x1_1 + w1, x2_1 + w2) - max(x1_1, x2_1)
+    h_intersection = min(y1_1 + h1, y2_1 + h2) - max(y1_1, y2_1)
+    if w_intersection <= 0 or h_intersection <= 0:  # No overlap
+        return 0
+    i = w_intersection * h_intersection
+    u = w1 * h1 + w2 * h2 - i  # Union = Total Area - I
+    return i / u
+
+
+def get_accuracy(model, data_loader, device, score_threshold=0.7, iou_threshold=0.5):
     model.eval()
-    c=0
     accuracy = []
     for images, targets in data_loader:
-        c+=1
         images = [image.to(device) for image in images]
-        #targets = [target.to(device) for target in targets]
+        # targets = [target.to(device) for target in targets]
         running_accuracy = 0
 
         with torch.no_grad():
@@ -140,45 +156,59 @@ def get_accuracy(model, data_loader, device, img_size=448):
 
         labels = list(pred[0]['labels'].cpu().numpy())
         boxes = list(pred[0]['boxes'].detach().cpu().numpy())
-        #scores = list(pred[0]['scores'].detach().cpu().numpy())
+        scores = list(pred[0]['scores'].detach().cpu().numpy())
 
         gt_boxes = targets[0]['boxes']
         gt_labels = targets[0]['labels']
         gt_boxes_center = []
         pred_boxes_center = []
-        #threshold_distance = (img_size / 100) ** 2 + (img_size / 100) ** 2
+        # threshold_distance = (img_size / 100) ** 2 + (img_size / 100) ** 2
         threshold_distance = 5
-        for i in range(len(gt_boxes)):
-            x1 = int(gt_boxes[i][0])
-            y1 = int(gt_boxes[i][1])
-            x2 = int(gt_boxes[i][2])
-            y2 = int(gt_boxes[i][3])
-            center = ((x1+x2)/2, (y1+y2)/2)
-            gt_boxes_center.append(center)
-
-        for i in range(len(boxes)):
-            x1 = int(boxes[i][0])
-            y1 = int(boxes[i][1])
-            x2 = int(boxes[i][2])
-            y2 = int(boxes[i][3])
-            center = ((x1+x2)/2, (y1+y2)/2)
-            pred_boxes_center.append(center)
-
-        for i, ctr in enumerate(gt_boxes_center):
-            distances = []
-            for j, p_ctr in enumerate(pred_boxes_center):
-                distances.append(get_distance(p_ctr, ctr))
-            min_index = distances.index(min(distances))
-            pred_label = labels[min_index]
-
-            if gt_labels[i] == pred_label:
-                if distances[min_index] < threshold_distance:
-                    running_accuracy += 1
+        for i, gt_box in enumerate(gt_boxes):
+            ioumax = 0
+            gt_index = -1
+            pred_index = -2
+            for j, pred_box in enumerate(boxes):
+                if scores[j] > score_threshold:
+                    iou = intersect_over_union(gt_box, pred_box)
+                    #print(f'iou {j}: {iou}')
+                    if iou > iou_threshold:
+                        if iou > ioumax:
+                            ioumax = iou
+                            gt_index = i
+                            pred_index = j
+            if (gt_labels[gt_index] == labels[pred_index]) and (ioumax > iou_threshold):
+                running_accuracy += 1
         accuracy.append(running_accuracy/len(gt_boxes))
-        #print(running_accuracy/len(gt_boxes), c)
     total_accuracy = mean(accuracy)
 
     return total_accuracy
+
+
+def write_detected_boxes(model, data_loader, device, opt):
+    model.eval()
+    accuracy = []
+    for images, targets in data_loader:
+        images = [image.to(device) for image in images]
+        # targets = [target.to(device) for target in targets]
+        running_accuracy = 0
+
+        with torch.no_grad():
+            model = model.cuda()
+            pred = model(images)
+
+        labels = list(pred[0]['labels'].cpu().numpy())
+        boxes = list(pred[0]['boxes'].detach().cpu().numpy())
+        scores = list(pred[0]['scores'].detach().cpu().numpy())
+        print(images, images[0])
+        txt_path = images.image_paths[:-4]
+        bbox_file = open(opt.txt_path + "detections/" + txt_path + ".txt", "w")
+        for i, pred_box in enumerate(boxes):
+            label = labels[i]
+            x, y, h, w = pred_box
+            line = [f"{label} {x} {y} {h} {w}\n"]
+            bbox_file.writelines(line)
+
 
 def _get_iou_types(model):
     model_without_ddp = model
@@ -222,9 +252,7 @@ def evaluate(model, data_loader, device):
         coco_evaluator.update(res)
         evaluator_time = time.time() - evaluator_time
         metric_logger.update(model_time=model_time, evaluator_time=evaluator_time)
-
-
-
+    
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)

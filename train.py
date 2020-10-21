@@ -8,7 +8,7 @@ import cv2 as cv
 import numpy as np
 import albumentations as A
 from dataset import FliesDataset
-from engine import train_one_epoch, get_val_loss, evaluate, get_accuracy
+from engine import train_one_epoch, get_val_loss, evaluate, get_accuracy, write_detected_boxes
 
 
 def get_transform():
@@ -20,6 +20,12 @@ def augmentations():
     return A.Compose([
         A.Resize(448, 448, interpolation=cv.INTER_AREA),
         A.Flip(p=0.50),
+    ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['category_ids']))
+
+
+def test_augmentations():
+    return A.Compose([
+        A.Resize(448, 448, interpolation=cv.INTER_AREA),
     ],bbox_params=A.BboxParams(format='pascal_voc', label_fields=['category_ids']))
 
 
@@ -71,7 +77,7 @@ def main():
     num_classes = 3  # cc + bz
     dataset_train = FliesDataset(flies_dir + 'train', csv_train, get_transform(), augmentations())
     dataset_val = FliesDataset(flies_dir + 'val', csv_val, get_transform(), augmentations())
-    dataset_test = FliesDataset(flies_dir + 'test', csv_test, get_transform(), augmentations())
+    dataset_test = FliesDataset(flies_dir + 'test', csv_test, get_transform(), test_augmentations())
     # define training and validation data loaders
     dataloader_train = torch.utils.data.DataLoader(
         dataset_train, batch_size=1, shuffle=True, num_workers=4,
@@ -112,7 +118,9 @@ def main():
     train_acc_list = []
     val_acc_list = []
 
-    num_epochs = 50
+    num_epochs = 20
+    prev_val_acc = -1
+
     for epoch in range(num_epochs):
         # train for one epoch, printing every 10 iterations
         loss_classifier, loss_box_reg, loss_objectness, loss_rpn_box_reg, loss = \
@@ -121,7 +129,22 @@ def main():
             get_val_loss(model, dataloader_val, device)
         train_acc = get_accuracy(model, dataloader_train, device)
         val_acc = get_accuracy(model, dataloader_val, device)
-        print('accuracy: ', train_acc, val_acc)
+
+        if val_acc >= prev_val_acc:
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optim_state_dict': optimizer.state_dict(),
+                'val_acc': val_acc,
+                'train_acc': train_acc
+            }, opt.model_path)
+            prev_val_acc = val_acc
+
+        print(f'train acc: {train_acc} | val acc: {val_acc}')
+        write_detected_boxes(model, dataloader_train, device, opt)
+        #boundingboxes = getBoundingBoxes(directory, isGT, bbFormat, coordType)
+        #evaluator = Evaluator()
+
         # update the learning rate
         lr_scheduler.step()
         # evaluate on the test dataset
@@ -136,25 +159,26 @@ def main():
         loss_box_reg_val.append(v_loss_box_reg)
         loss_objectness_val.append(v_loss_objectness)
         loss_rpn_box_reg_val.append(v_loss_rpn_box_reg)
-        train_acc_list.append(train_acc)
-        val_acc_list.append(val_acc)
+        #train_acc_list.append(train_acc)
+        #val_acc_list.append(val_acc)
 
     # plot loss info
     plot_loss(loss_list, loss_val, "Loss (sum of losses)", opt.results_directory+"loss.jpg", large_scale=True)
     plot_loss(loss_classifier_list, loss_classifier_val, "Classification loss",
-              opt.results_directory+"classification_loss.jpg")
+              opt.results_directory+"classification_loss.png")
     plot_loss(loss_box_reg_list, loss_box_reg_val, "Bounding box regressor loss",
-              opt.results_directory+"bbox_regressor_loss.jpg")
+              opt.results_directory+"bbox_regressor_loss.png")
     plot_loss(loss_objectness_list, loss_objectness_val, "Object/background loss",
-              opt.results_directory+"objectness_loss.jpg")
+              opt.results_directory+"objectness_loss.png")
     plot_loss(loss_rpn_box_reg_list, loss_rpn_box_reg_val, "RPN bounding box regressor loss",
-              opt.results_directory+"rpn_loss.jpg")
-    plt.figure()
-    plt.plot(train_acc_list, label="Train accuracy")
-    plt.plot(val_acc_list, label="Validation accuracy")
-    plt.legend(loc="lower right")
-    plt.title('Classification accuracy vs epochs')
-    plt.savefig('../acc.jpg')
+              opt.results_directory+"rpn_loss.png")
+
+    # plt.figure()
+    # plt.plot(train_acc_list, label="Train accuracy")
+    # plt.plot(val_acc_list, label="Validation accuracy")
+    # plt.legend(loc="lower right")
+    # plt.title('Classification accuracy vs epochs')
+    # plt.savefig('../acc.jpg')
 
     print("That's it!")
 
