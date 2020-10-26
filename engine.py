@@ -28,7 +28,7 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
     loss_objectness = 0
     loss_rpn_box_reg = 0
 
-    for images, targets in metric_logger.log_every(data_loader, print_freq, header):
+    for images, targets, _ in metric_logger.log_every(data_loader, print_freq, header):
         images = list(image.to(device) for image in images)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
         loss_dict = model(images, targets)
@@ -37,8 +37,10 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
 
         # reduce losses over all GPUs for logging purposes
         loss_dict_reduced = utils.reduce_dict(loss_dict)
-        losses_reduced = sum(loss for loss in loss_dict_reduced.values())
-        loss_value = losses_reduced.item()
+        # previous version: losses_reduced = sum(loss for loss in loss_dict_reduced.values())
+        losses_reduced = (loss_dict_reduced['loss_classifier'].item() + loss_dict_reduced['loss_objectness'].item()
+        + 0.5*loss_dict_reduced['loss_box_reg'].item() + 0.5*loss_dict_reduced['loss_rpn_box_reg'].item())
+        loss_value = losses_reduced # previous version: loss_value = losses_reduced.item()
         running_loss += loss_value
 
         loss_classifier += loss_dict_reduced['loss_classifier'].item()
@@ -76,7 +78,7 @@ def get_val_loss(model, data_loader_val, device):
     loss_box_reg = 0
     loss_objectness = 0
     loss_rpn_box_reg = 0
-    for images, targets in data_loader_val:
+    for images, targets, _ in data_loader_val:
         images = [image.to(device) for image in images]
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
@@ -102,7 +104,7 @@ def get_val_loss(model, data_loader_val, device):
 def get_scores(model, data_loader, device):
     model.eval()
     running_accuracy = 0
-    for images, targets in data_loader:
+    for images, targets , _ in data_loader:
         images = [image.to(device) for image in images]
 
         with torch.no_grad():
@@ -145,7 +147,7 @@ def intersect_over_union(bound_rect1, bound_rect2):
 def get_accuracy(model, data_loader, device, score_threshold=0.7, iou_threshold=0.5):
     model.eval()
     accuracy = []
-    for images, targets in data_loader:
+    for images, targets, _ in data_loader:
         images = [image.to(device) for image in images]
         # targets = [target.to(device) for target in targets]
         running_accuracy = 0
@@ -166,17 +168,17 @@ def get_accuracy(model, data_loader, device, score_threshold=0.7, iou_threshold=
         threshold_distance = 5
         for i, gt_box in enumerate(gt_boxes):
             ioumax = 0
-            gt_index = -1
-            pred_index = -2
+            gt_index = -1 # index of ground truth box
+            pred_index = -2 # index of detected box
             for j, pred_box in enumerate(boxes):
                 if scores[j] > score_threshold:
                     iou = intersect_over_union(gt_box, pred_box)
                     #print(f'iou {j}: {iou}')
                     if iou > iou_threshold:
                         if iou > ioumax:
-                            ioumax = iou
-                            gt_index = i
-                            pred_index = j
+                            ioumax = iou  # ioumax stores the maximum iou among the detected boxes
+                            gt_index = i  # stores the index of the gt box with the maximal iou
+                            pred_index = j  # stores the index of the detected box with the maximal iou
             if (gt_labels[gt_index] == labels[pred_index]) and (ioumax > iou_threshold):
                 running_accuracy += 1
         accuracy.append(running_accuracy/len(gt_boxes))
@@ -188,7 +190,7 @@ def get_accuracy(model, data_loader, device, score_threshold=0.7, iou_threshold=
 def write_detected_boxes(model, data_loader, device, opt):
     model.eval()
     accuracy = []
-    for images, targets in data_loader:
+    for images, targets, _ in data_loader:
         images = [image.to(device) for image in images]
         # targets = [target.to(device) for target in targets]
         running_accuracy = 0
@@ -236,7 +238,7 @@ def evaluate(model, data_loader, device):
     iou_types = _get_iou_types(model)
     coco_evaluator = CocoEvaluator(coco, iou_types)
 
-    for image, targets in metric_logger.log_every(data_loader, 100, header):
+    for image, targets, _ in metric_logger.log_every(data_loader, 100, header):
         image = list(img.to(device) for img in image)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 

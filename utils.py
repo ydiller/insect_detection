@@ -322,8 +322,6 @@ def parse_flags():
                         help='lower boundary for box area')
     parser.add_argument('--upper_width', default=70,
                         help='upper boundary for box width and height')
-    parser.add_argument('--results', default='../results/',
-                        help='path for results of the bounding boxes image to be saved')
     parser.add_argument('--data_directory', default='../data/',
                         help='path to data directory')
     parser.add_argument('--csv_path', default='../train_bounding_boxes.csv',
@@ -340,5 +338,7 @@ def parse_flags():
                         help='path to bounding boxes txt files')
     parser.add_argument('--model_path', default='../weights.pt',
                         help='path to saved model')
+    parser.add_argument('--json_directory', default='../json_annotations/',
+                        help='path to json annotations files')
     args = parser.parse_args()
     return args

@@ -1,7 +1,8 @@
 import pandas as pd
-from PIL import Image
 import torch
 import numpy as np
+from pathlib import Path
+from PIL import Image
 
 
 class FliesDataset(object):
@@ -14,6 +15,8 @@ class FliesDataset(object):
 
     def __getitem__(self, idx):
         img_path = self.image_paths[idx]
+        img_name = Path(img_path)
+        img_name = img_name.stem
         img = Image.open(img_path).convert("RGB")
         img = np.asarray(img)
         boxes = []
@@ -43,7 +46,7 @@ class FliesDataset(object):
         if self.transforms is not None:
             img, target = self.transforms(img, target)
 
-        return img, target
+        return img, target, img_name
 
     def __len__(self):
         return len(self.boxes_file['File path'].unique())

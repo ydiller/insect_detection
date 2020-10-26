@@ -20,6 +20,7 @@ def augmentations():
     return A.Compose([
         A.Resize(448, 448, interpolation=cv.INTER_AREA),
         A.Flip(p=0.50),
+        A.Rotate(limit=45)
     ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['category_ids']))
 
 
@@ -50,10 +51,24 @@ def draw_bounding_box_from_dataloader(img, target):
 
 
 def plot_loss(loss, val_loss, title, filename,large_scale=False):
+    # set font sizes for plt
+    SMALL_SIZE = 12
+    MEDIUM_SIZE = 14
+    BIGGER_SIZE = 16
+    plt.rc('font', size=MEDIUM_SIZE)  # controls default text sizes
+    plt.rc('axes', titlesize=MEDIUM_SIZE)  # fontsize of the axes title
+    plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+    plt.rc('ytick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+    plt.rc('legend', fontsize=MEDIUM_SIZE)  # legend fontsize
+    plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+
     plt.figure()
-    plt.plot(loss, label="train")
-    plt.plot(val_loss, label="test")
-    plt.legend(loc="upper right")
+    plt.plot(loss, label="training loss")
+    plt.plot(val_loss, label="validation loss")
+    plt.legend(loc="upper right", frameon=False)
+    plt.xlabel("epochs")
+    plt.ylabel("loss")
     plt.title(title)
     if large_scale:
         plt.ylim(0, 2)
@@ -74,9 +89,9 @@ def main():
     csv_train = opt.csv_train
     csv_val = opt.csv_val
     csv_test = opt.csv_test
-    num_classes = 3  # cc + bz
+    num_classes = 11  # 10 classes + bg
     dataset_train = FliesDataset(flies_dir + 'train', csv_train, get_transform(), augmentations())
-    dataset_val = FliesDataset(flies_dir + 'val', csv_val, get_transform(), augmentations())
+    dataset_val = FliesDataset(flies_dir + 'val', csv_val, get_transform(), test_augmentations())
     dataset_test = FliesDataset(flies_dir + 'test', csv_test, get_transform(), test_augmentations())
     # define training and validation data loaders
     dataloader_train = torch.utils.data.DataLoader(
@@ -88,12 +103,17 @@ def main():
     dataloader_test = torch.utils.data.DataLoader(
         dataset_test, batch_size=1, shuffle=False, num_workers=4,
         collate_fn=utils.collate_fn)
-
+    # save samples of train and test datasets with boxes
     test_iter = iter(dataloader_test)
     for i in range(len(dataset_test)):
-        img, target = next(test_iter)
+        img, target, img_name = next(test_iter)
         img_ = draw_bounding_box_from_dataloader(img, target[0])
-        plt.imsave(opt.results_directory+'test_sample_'+str(i)+'.jpg', img_)
+        plt.imsave(opt.results_directory+img_name[0]+'_test_sample.jpg', img_)
+    train_iter = iter(dataloader_train)
+    for i in range(10):
+        img, target, img_name = next(train_iter)
+        img_ = draw_bounding_box_from_dataloader(img, target[0])
+        plt.imsave(opt.results_directory+img_name[0]+'_train_sample.jpg', img_)
 
     # get the model using our helper function
     model = fasterrcnn_resnet50_fpn(pretrained=False, progress=True, num_classes=num_classes, pretrained_backbone=True)
@@ -118,8 +138,10 @@ def main():
     train_acc_list = []
     val_acc_list = []
 
-    num_epochs = 20
+    num_epochs = 100
     prev_val_acc = -1
+    min_obj_loss = 100
+    min_calssification_loss = 100
 
     for epoch in range(num_epochs):
         # train for one epoch, printing every 10 iterations
@@ -129,7 +151,6 @@ def main():
             get_val_loss(model, dataloader_val, device)
         train_acc = get_accuracy(model, dataloader_train, device)
         val_acc = get_accuracy(model, dataloader_val, device)
-
         if val_acc >= prev_val_acc:
             torch.save({
                 'epoch': epoch,
@@ -139,9 +160,12 @@ def main():
                 'train_acc': train_acc
             }, opt.model_path)
             prev_val_acc = val_acc
-
         print(f'train acc: {train_acc} | val acc: {val_acc}')
-        write_detected_boxes(model, dataloader_train, device, opt)
+        if v_loss_objectness < min_obj_loss:
+            min_obj_loss= v_loss_objectness
+        if v_loss_classifier < min_calssification_loss:
+            min_calssification_loss = v_loss_classifier
+        #write_detected_boxes(model, dataloader_train, device, opt)
         #boundingboxes = getBoundingBoxes(directory, isGT, bbFormat, coordType)
         #evaluator = Evaluator()
 
@@ -159,11 +183,11 @@ def main():
         loss_box_reg_val.append(v_loss_box_reg)
         loss_objectness_val.append(v_loss_objectness)
         loss_rpn_box_reg_val.append(v_loss_rpn_box_reg)
-        #train_acc_list.append(train_acc)
-        #val_acc_list.append(val_acc)
+        train_acc_list.append(train_acc)
+        val_acc_list.append(val_acc)
 
     # plot loss info
-    plot_loss(loss_list, loss_val, "Loss (sum of losses)", opt.results_directory+"loss.jpg", large_scale=True)
+    plot_loss(loss_list, loss_val, "Loss (sum of losses)", opt.results_directory+"loss.png", large_scale=True)
     plot_loss(loss_classifier_list, loss_classifier_val, "Classification loss",
               opt.results_directory+"classification_loss.png")
     plot_loss(loss_box_reg_list, loss_box_reg_val, "Bounding box regressor loss",
@@ -173,23 +197,27 @@ def main():
     plot_loss(loss_rpn_box_reg_list, loss_rpn_box_reg_val, "RPN bounding box regressor loss",
               opt.results_directory+"rpn_loss.png")
 
-    # plt.figure()
-    # plt.plot(train_acc_list, label="Train accuracy")
-    # plt.plot(val_acc_list, label="Validation accuracy")
-    # plt.legend(loc="lower right")
-    # plt.title('Classification accuracy vs epochs')
-    # plt.savefig('../acc.jpg')
+    plt.figure()
+    plt.plot(train_acc_list, label="Train accuracy")
+    plt.plot(val_acc_list, label="Validation accuracy")
+    plt.legend(loc="lower right")
+    plt.title('Classification accuracy vs epochs')
+    plt.savefig('../acc.jpg')
+
+    bbox_file = open("../minimum_loss_log.txt", "w")
+    line = f"minimal classification loss: {min_calssification_loss}  |minimal objectness loss: {min_obj_loss}"
+    bbox_file.write(line)
 
     print("That's it!")
 
     # make predictions on test images
     pred_iter = iter(dataloader_test)
     for i in range(len(dataset_test)):
-        img, _ = next(pred_iter)
+        img, _, img_name = next(pred_iter)
         img = (img[0].numpy()*255).astype(np.uint8)
         img = np.moveaxis(img, 0, -1)
         img = cv.UMat(img).get()
-        img = cv.resize(img, (448, 448), interpolation=cv.INTER_AREA)
+        # img = cv.resize(img, (448, 448), interpolation=cv.INTER_AREA)
         model = model.eval()
         with torch.no_grad():
             model = model.cuda()
@@ -200,7 +228,7 @@ def main():
         scores = list(pred[0]['scores'].detach().cpu().numpy())
         category_id_to_name = {1: 'cc', 2: 'bz'}
         for j in range(len(boxes)):
-            if scores[j] > 0.7:
+            if scores[j] > 0.5:
                 x1 = int(boxes[j][0])
                 y1 = int(boxes[j][1])
                 x2 = int(boxes[j][2])
@@ -210,8 +238,7 @@ def main():
                 cv.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 1)  # Draw Rectangle with the coordinates
                 cv.putText(img, class_name+" "+score, (x1, y1), cv.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255),
                            thickness=1)  # Write the prediction class
-        cv.imwrite(opt.results_directory+'prediction_result_'+str(i)+'.jpg', img)
-
+        plt.imsave(opt.results_directory+img_name[0]+'_prediction.jpg', img)
 
 if __name__ == '__main__':
     main()
