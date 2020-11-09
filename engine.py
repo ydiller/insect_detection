@@ -33,7 +33,12 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
         loss_dict = model(images, targets)
 
+        # original equal loss
         losses = sum(loss for loss in loss_dict.values())
+
+        # weighted loss
+        # losses = loss_dict['loss_classifier'] + loss_dict['loss_objectness']
+        # + 0.5*loss_dict['loss_box_reg'] + 0.5*loss_dict['loss_rpn_box_reg']
 
         # reduce losses over all GPUs for logging purposes
         loss_dict_reduced = utils.reduce_dict(loss_dict)
@@ -179,18 +184,19 @@ def get_accuracy(model, data_loader, device, score_threshold=0.7, iou_threshold=
                             ioumax = iou  # ioumax stores the maximum iou among the detected boxes
                             gt_index = i  # stores the index of the gt box with the maximal iou
                             pred_index = j  # stores the index of the detected box with the maximal iou
-            if (gt_labels[gt_index] == labels[pred_index]) and (ioumax > iou_threshold):
-                running_accuracy += 1
+            if gt_index != -1 and pred_index != -2:
+                if (gt_labels[gt_index] == labels[pred_index]) and (ioumax > iou_threshold):
+                    running_accuracy += 1
         accuracy.append(running_accuracy/len(gt_boxes))
     total_accuracy = mean(accuracy)
 
     return total_accuracy
 
 
-def write_detected_boxes(model, data_loader, device, opt):
+def write_detected_boxes(model, data_loader, device, opt, mode = ""):
     model.eval()
     accuracy = []
-    for images, targets, _ in data_loader:
+    for images, targets, img_name in data_loader:
         images = [image.to(device) for image in images]
         # targets = [target.to(device) for target in targets]
         running_accuracy = 0
@@ -202,13 +208,12 @@ def write_detected_boxes(model, data_loader, device, opt):
         labels = list(pred[0]['labels'].cpu().numpy())
         boxes = list(pred[0]['boxes'].detach().cpu().numpy())
         scores = list(pred[0]['scores'].detach().cpu().numpy())
-        print(images, images[0])
-        txt_path = images.image_paths[:-4]
-        bbox_file = open(opt.txt_path + "detections/" + txt_path + ".txt", "w")
+        bbox_file = open(opt.txt_path + mode + "detections/" + img_name[0] + ".txt", "w")
         for i, pred_box in enumerate(boxes):
             label = labels[i]
-            x, y, h, w = pred_box
-            line = [f"{label} {x} {y} {h} {w}\n"]
+            score = scores[i]
+            x, y, x2, y2 = pred_box
+            line = [f"{label} {score} {x} {y} {x2-x} {y2-y}\n"]
             bbox_file.writelines(line)
 
 

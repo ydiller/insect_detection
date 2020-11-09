@@ -7,9 +7,12 @@ import transforms as T
 import cv2 as cv
 import numpy as np
 import albumentations as A
+import random
 from dataset import FliesDataset
 from engine import train_one_epoch, get_val_loss, evaluate, get_accuracy, write_detected_boxes
-
+# from BoundingBox import BoundingBox
+# from BoundingBoxes import BoundingBoxes
+# from Evaluator import *
 
 def get_transform():
     transforms = [T.ToTensor()]
@@ -20,7 +23,7 @@ def augmentations():
     return A.Compose([
         A.Resize(448, 448, interpolation=cv.INTER_AREA),
         A.Flip(p=0.50),
-        A.Rotate(limit=45)
+        # A.Rotate(limit=90)
     ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['category_ids']))
 
 
@@ -29,6 +32,17 @@ def test_augmentations():
         A.Resize(448, 448, interpolation=cv.INTER_AREA),
     ],bbox_params=A.BboxParams(format='pascal_voc', label_fields=['category_ids']))
 
+def set_seed(seed):
+    np.random.seed(seed)
+    random.seed(seed)
+
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.enabled = False
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
 
 def draw_bounding_box_from_dataloader(img, target):
     category_id_to_name = {1: 'cc', 2: 'bz'}
@@ -76,11 +90,13 @@ def plot_loss(loss, val_loss, title, filename,large_scale=False):
         plt.ylim(0, 1)
     plt.savefig(filename)
 
+
 # main function for training. Reading data from csv file includes image paths and bounding boxes
 # for each image. creates separate datasets for train and val. building the model on top of
 # fasterRcnn resnet50 network.
 # on command line use: --data_directory '../data/' --csv_path '../bounding_boxes.csv'
 def main():
+    set_seed(42)  #set torch seed
     # load command line options
     opt = utils.parse_flags()
     # train on the GPU or on the CPU, if a GPU is not available
@@ -89,7 +105,7 @@ def main():
     csv_train = opt.csv_train
     csv_val = opt.csv_val
     csv_test = opt.csv_test
-    num_classes = 11  # 10 classes + bg
+    num_classes = 12  # 11 classes + bg
     dataset_train = FliesDataset(flies_dir + 'train', csv_train, get_transform(), augmentations())
     dataset_val = FliesDataset(flies_dir + 'val', csv_val, get_transform(), test_augmentations())
     dataset_test = FliesDataset(flies_dir + 'test', csv_test, get_transform(), test_augmentations())
@@ -104,16 +120,16 @@ def main():
         dataset_test, batch_size=1, shuffle=False, num_workers=4,
         collate_fn=utils.collate_fn)
     # save samples of train and test datasets with boxes
-    test_iter = iter(dataloader_test)
-    for i in range(len(dataset_test)):
-        img, target, img_name = next(test_iter)
-        img_ = draw_bounding_box_from_dataloader(img, target[0])
-        plt.imsave(opt.results_directory+img_name[0]+'_test_sample.jpg', img_)
-    train_iter = iter(dataloader_train)
-    for i in range(10):
-        img, target, img_name = next(train_iter)
-        img_ = draw_bounding_box_from_dataloader(img, target[0])
-        plt.imsave(opt.results_directory+img_name[0]+'_train_sample.jpg', img_)
+    # test_iter = iter(dataloader_test)
+    # for i in range(len(dataset_test)):
+    #     img, target, img_name = next(test_iter)
+    #     img_ = draw_bounding_box_from_dataloader(img, target[0])
+    #     plt.imsave(opt.results_directory+img_name[0]+'_test_sample.jpg', img_)
+    # train_iter = iter(dataloader_train)
+    # for i in range(10):
+    #     img, target, img_name = next(train_iter)
+    #     img_ = draw_bounding_box_from_dataloader(img, target[0])
+    #     plt.imsave(opt.results_directory+img_name[0]+'_train_sample.jpg', img_)
 
     # get the model using our helper function
     model = fasterrcnn_resnet50_fpn(pretrained=False, progress=True, num_classes=num_classes, pretrained_backbone=True)
@@ -138,10 +154,13 @@ def main():
     train_acc_list = []
     val_acc_list = []
 
-    num_epochs = 100
-    prev_val_acc = -1
-    min_obj_loss = 100
-    min_calssification_loss = 100
+    num_epochs = int(opt.num_epochs)
+    max_train_acc = -1
+    max_val_acc = -1
+    min_t_obj_loss = 100
+    min_t_calssification_loss = 100
+    min_v_obj_loss = 100
+    min_v_calssification_loss = 100
 
     for epoch in range(num_epochs):
         # train for one epoch, printing every 10 iterations
@@ -151,23 +170,27 @@ def main():
             get_val_loss(model, dataloader_val, device)
         train_acc = get_accuracy(model, dataloader_train, device)
         val_acc = get_accuracy(model, dataloader_val, device)
-        if val_acc >= prev_val_acc:
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optim_state_dict': optimizer.state_dict(),
-                'val_acc': val_acc,
-                'train_acc': train_acc
-            }, opt.model_path)
-            prev_val_acc = val_acc
-        print(f'train acc: {train_acc} | val acc: {val_acc}')
-        if v_loss_objectness < min_obj_loss:
-            min_obj_loss= v_loss_objectness
-        if v_loss_classifier < min_calssification_loss:
-            min_calssification_loss = v_loss_classifier
-        #write_detected_boxes(model, dataloader_train, device, opt)
-        #boundingboxes = getBoundingBoxes(directory, isGT, bbFormat, coordType)
-        #evaluator = Evaluator()
+        if val_acc >= max_val_acc:
+            if opt.save_model:
+                print (f"save model {opt.save_model}")
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optim_state_dict': optimizer.state_dict(),
+                    'val_acc': val_acc,
+                    'train_acc': train_acc
+                }, opt.model_path)
+            max_val_acc = val_acc
+        if train_acc >= max_train_acc:
+            max_train_acc = train_acc
+        if loss_objectness < min_t_obj_loss:
+            min_t_obj_loss= loss_objectness
+        if loss_classifier < min_t_calssification_loss:
+            min_t_calssification_loss = loss_classifier
+        if v_loss_objectness < min_v_obj_loss:
+            min_v_obj_loss= v_loss_objectness
+        if v_loss_classifier < min_v_calssification_loss:
+            min_v_calssification_loss = v_loss_classifier
 
         # update the learning rate
         lr_scheduler.step()
@@ -186,6 +209,8 @@ def main():
         train_acc_list.append(train_acc)
         val_acc_list.append(val_acc)
 
+    # print accuracy data
+    print(f'train acc: {max_train_acc} | val acc: {max_val_acc}')
     # plot loss info
     plot_loss(loss_list, loss_val, "Loss (sum of losses)", opt.results_directory+"loss.png", large_scale=True)
     plot_loss(loss_classifier_list, loss_classifier_val, "Classification loss",
@@ -202,13 +227,17 @@ def main():
     plt.plot(val_acc_list, label="Validation accuracy")
     plt.legend(loc="lower right")
     plt.title('Classification accuracy vs epochs')
-    plt.savefig('../acc.jpg')
-
-    bbox_file = open("../minimum_loss_log.txt", "w")
-    line = f"minimal classification loss: {min_calssification_loss}  |minimal objectness loss: {min_obj_loss}"
+    plt.savefig(opt.results_directory+"acc.png")
+    # write text file with loss and acc data
+    bbox_file = open(opt.results_directory+"minimum_loss_log.txt", "w")
+    line = f"min train class. loss: {min_t_calssification_loss}  | min train objectness loss: {min_t_obj_loss} | max " \
+           f"train acc: {max_train_acc} | \n min val class. loss: {min_v_calssification_loss}  | min val objectness" \
+           f" loss: {min_v_obj_loss} |max val accuracy {max_val_acc} "
     bbox_file.write(line)
-
-    print("That's it!")
+    # write text files with detected bounding boxes
+    write_detected_boxes(model, dataloader_train, device, opt, "train/")
+    write_detected_boxes(model, dataloader_val, device, opt, "val/")
+    write_detected_boxes(model, dataloader_test, device, opt, "test/")
 
     # make predictions on test images
     pred_iter = iter(dataloader_test)

@@ -22,7 +22,7 @@ def augmentations():
 
 def drawbox_from_prediction(img, boxes, scores, labels):
     # category_id_to_name = {1: 'PEACH-FF', 2: 'S-HOUSE-FLY', 3: 'L-HOUSE-FLY', 4: 'OTHER', 5: 'MEDFLY',
-    #                        6: 'SPIDER', 7: 'L-ANT', 8: 'Ants', 9: 'Bee', 10: 'LACEWING '}
+    #                        6: 'SPIDER', 7: 'L-ANT', 8: 'Ants', 9: 'Bee', 10: 'LACEWING ', 11: 'ORIENTAL-FF'}
     category_id_to_name = {1: 'MEDFLY', 2: 'PEACH-FF'}  # temporary dict for lab dataset
     category_id_to_color = {1: (0, 255, 0), 2: (0, 0, 255)}
     for j in range(len(boxes)):
@@ -63,7 +63,7 @@ def main():
 
     pred_iter = iter(dataloader_test)
     for i in range(len(dataset_test)):
-        img, _, _ = next(pred_iter)
+        img, _, img_name = next(pred_iter)
         img = (img[0].numpy()*255).astype(np.uint8)
         img = np.moveaxis(img, 0, -1)
         img = cv.UMat(img).get()
@@ -75,7 +75,7 @@ def main():
         boxes = list(pred[0]['boxes'].detach().cpu().numpy())
         scores = list(pred[0]['scores'].detach().cpu().numpy())
         pred_img = drawbox_from_prediction(img, boxes, scores, labels)
-        cv.imwrite(opt.results_directory + str(i) + '_detection' + '.jpg', pred_img)
+        cv.imwrite(opt.results_directory + img_name[0] + '_detection.jpg', pred_img, cv.cvtColor(img, cv.COLOR_RGB2BGR))
 
     cv.waitKey(0)
     cv.destroyAllWindows()

@@ -5,6 +5,7 @@ import pandas as pd
 import itertools
 import matplotlib.pyplot as plt
 import utils
+from pathlib import Path
 
 
 def transformations(path, opt):
@@ -104,22 +105,27 @@ def main():
     labels = []
     image_index = []  # index for all the images, all the boxes belongs to certain index have the same index.
     count = 0
+    # ratio between original size to model input size:
+    x_ratio = 3280/448
+    y_ratio = 2464/448
     for root, dirs, files in os.walk(dr):
         for index, file in enumerate(files):
             if file != 'desktop.ini':  # get over windows problem
                 path = os.path.join(root, file)
+                img_name = Path(path)
+                img_name = img_name.stem
                 src_gray = transformations(path, opt)
                 label = 1 if file[7:9] == 'cc' else 2
                 rectangles = thresh_callback(src_gray, opt, threshold=80)
-                # txt_path = file[:-4]
-                # bbox_file = open(opt.txt_path+txt_path+".txt", "w")
+                # create txt file with bbox data. The file is used for evaluation metrics.
+                bbox_file = open(opt.txt_path + "groundtruths/" + img_name + ".txt", "w")
                 for rect in rectangles:
                     paths.append(path)
                     labels.append(label)
                     image_index.append(count)
-                    # x, y, h, w = rect
-                    # line = [f"{label} {x} {y} {h} {w}\n"]
-                    # bbox_file.writelines(line)
+                    x, y, w, h = rect
+                    line = [f"{label} {x/x_ratio} {y/y_ratio} {w/x_ratio} {h/y_ratio}\n"]
+                    bbox_file.writelines(line)  # add new bbox to txt file
 
                 all_rectangles.append(rectangles)
                 count += 1

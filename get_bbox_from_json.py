@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import utils
+from pathlib import Path
 
 
 def drawbox(csv_path, results_folder):
@@ -18,6 +19,8 @@ def drawbox(csv_path, results_folder):
     for key in data_frame_dict.keys():
         data_frame_dict[key] = df[:][df['File path'] == key]
         path = data_frame_dict[key].iloc[0][1]
+        img_name = Path(path)
+        img_name = img_name.stem
         img = cv.imread(path)
         for index, row in data_frame_dict[key].iterrows():
             x = row['X']
@@ -32,7 +35,7 @@ def drawbox(csv_path, results_folder):
                        thickness=3)  # Write the prediction class
         # img = cv.resize(img, (448, 448), interpolation=cv.INTER_AREA)
         # plt.imsave(results_folder + path[-15:-4] + '-high_quality.jpg', img, cmap='gray')
-        plt.imsave(results_folder + str(index) + '_' + path[-15:-4] + '_gt', img, cmap='gray')
+        plt.imsave(results_folder + img_name + '_gt.jpg', img)
 
 def main():
     opt = utils.parse_flags()
@@ -53,6 +56,8 @@ def main():
                     json_file = json.load(read_file)
                 image_name = list(json_file.keys())[0]
                 json_data = json_file[image_name]
+                # create txt file with bbox data. The file is used for evaluation metrics.
+                bbox_file = open(opt.txt_path + "groundtruths/" + image_name + ".txt", "w")
                 for bbox in json_data[:-1]:
                     box_data = bbox["points"]
                     x = int(box_data["x1"])
@@ -61,7 +66,7 @@ def main():
                     h = int(box_data["y2"]) - int(box_data["y1"])
                     label = int(bbox["classId"])
                     # print(f"box data: {box_data}, label: {label}")
-                    if 0 < label < 11:
+                    if 0 < label < 12:
                         image_index.append(count)
                         paths.append(opt.data_directory+image_name)
                         labels.append(label)
@@ -69,6 +74,8 @@ def main():
                         y_list.append(y)
                         w_list.append(w)
                         h_list.append(h)
+                        line = [f"{label} {x} {y} {h} {w}\n"]
+                        bbox_file.writelines(line)  # add new bbox to txt file
                 count += 1
         paths_arr = np.array(paths)
         labels_arr = np.array(labels)

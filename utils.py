@@ -340,5 +340,9 @@ def parse_flags():
                         help='path to saved model')
     parser.add_argument('--json_directory', default='../json_annotations/',
                         help='path to json annotations files')
+    parser.add_argument('--num_epochs', default=200,
+                        help='number of epochs for training')
+    parser.add_argument('--save_model', default=True,
+                        help='whether to save model dictionary or not')
     args = parser.parse_args()
     return args
