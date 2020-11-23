@@ -23,7 +23,7 @@ def augmentations():
     return A.Compose([
         A.Resize(448, 448, interpolation=cv.INTER_AREA),
         A.Flip(p=0.50),
-        # A.Rotate(limit=90)
+        A.Rotate(limit=90)
     ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['category_ids']))
 
 
@@ -237,7 +237,7 @@ def main():
     # write text files with detected bounding boxes
     write_detected_boxes(model, dataloader_train, device, opt, "train/")
     write_detected_boxes(model, dataloader_val, device, opt, "val/")
-    write_detected_boxes(model, dataloader_test, device, opt, "test/")
+    # write_detected_boxes(model, dataloader_test, device, opt, "test/")
 
     # make predictions on test images
     pred_iter = iter(dataloader_test)

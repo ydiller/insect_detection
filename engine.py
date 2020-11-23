@@ -217,6 +217,33 @@ def write_detected_boxes(model, data_loader, device, opt, mode = ""):
             bbox_file.writelines(line)
 
 
+def write_field_detected_boxes(model, data_loader, device, opt, mode = ""):
+    model.eval()
+    accuracy = []
+    for images, targets, img_name in data_loader:
+        images = [image.to(device) for image in images]
+        # targets = [target.to(device) for target in targets]
+        running_accuracy = 0
+
+        with torch.no_grad():
+            model = model.cuda()
+            pred = model(images)
+
+        labels = list(pred[0]['labels'].cpu().numpy())
+        boxes = list(pred[0]['boxes'].detach().cpu().numpy())
+        scores = list(pred[0]['scores'].detach().cpu().numpy())
+        bbox_file = open(opt.txt_path + mode + "detections/" + img_name[0] + ".txt", "w")
+        for i, pred_box in enumerate(boxes):
+            if(labels[i]==1):
+                label = 5
+            elif (labels[i] == 2):
+                label = 1
+            score = scores[i]
+            x, y, x2, y2 = pred_box
+            line = [f"{label} {score} {x} {y} {x2-x} {y2-y}\n"]
+            bbox_file.writelines(line)
+
+
 def _get_iou_types(model):
     model_without_ddp = model
     if isinstance(model, torch.nn.parallel.DistributedDataParallel):

@@ -5,8 +5,10 @@ import numpy as np
 import transforms as T
 import albumentations as A
 import utils
+import matplotlib.pyplot as plt
 from dataset import FliesDataset
 from torchvision.models.detection import fasterrcnn_resnet50_fpn
+from engine import write_field_detected_boxes
 
 
 def get_transform():
@@ -43,7 +45,8 @@ def drawbox_from_prediction(img, boxes, scores, labels):
 def main():
     opt = utils.parse_flags()
     dr = opt.data_directory
-    num_classes = 11  # 10 classes + bg
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    num_classes = 12  # 10 classes + bg
     dataset_test = FliesDataset(dr, opt.csv_test, get_transform(), augmentations())
     dataloader_test = torch.utils.data.DataLoader(
         dataset_test, batch_size=1, shuffle=False, num_workers=4,
@@ -61,21 +64,25 @@ def main():
     # model.load_state_dict(torch.load(opt.model_path))
     model.eval()
 
-    pred_iter = iter(dataloader_test)
-    for i in range(len(dataset_test)):
-        img, _, img_name = next(pred_iter)
-        img = (img[0].numpy()*255).astype(np.uint8)
-        img = np.moveaxis(img, 0, -1)
-        img = cv.UMat(img).get()
-        # img = cv.resize(img, (448, 448), interpolation=cv.INTER_AREA)
-        with torch.no_grad():
-            model = model.cuda()
-            pred = model([dataset_test[i][0].cuda()])
-        labels = list(pred[0]['labels'].cpu().numpy())
-        boxes = list(pred[0]['boxes'].detach().cpu().numpy())
-        scores = list(pred[0]['scores'].detach().cpu().numpy())
-        pred_img = drawbox_from_prediction(img, boxes, scores, labels)
-        cv.imwrite(opt.results_directory + img_name[0] + '_detection.jpg', pred_img, cv.cvtColor(img, cv.COLOR_RGB2BGR))
+    # pred_iter = iter(dataloader_test)
+    # for i in range(len(dataset_test)):
+    #     img, target, img_name = next(pred_iter)
+    #     print(img_name)
+    #     img = (img[0].numpy()*255).astype(np.uint8)
+    #     img = np.moveaxis(img, 0, -1)
+    #     img = cv.UMat(img).get()
+    #     # img = cv.resize(img, (448, 448), interpolation=cv.INTER_AREA)
+    #     with torch.no_grad():
+    #         model = model.cuda()
+    #         pred = model([dataset_test[i][0].cuda()])
+    #     labels = list(pred[0]['labels'].cpu().numpy())
+    #     boxes = list(pred[0]['boxes'].detach().cpu().numpy())
+    #     scores = list(pred[0]['scores'].detach().cpu().numpy())
+    #     pred_img = drawbox_from_prediction(img, boxes, scores, labels)
+    #     # cv.imwrite(opt.results_directory + img_name[0] + '_detection.jpg', pred_img)
+    #     plt.imsave(opt.results_directory + img_name[0] + '_detection.jpg', pred_img)
+
+    write_field_detected_boxes(model, dataloader_test, device, opt, "test/")
 
     cv.waitKey(0)
     cv.destroyAllWindows()
