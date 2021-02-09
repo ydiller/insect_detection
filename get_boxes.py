@@ -106,8 +106,8 @@ def main():
     image_index = []  # index for all the images, all the boxes belongs to certain index have the same index.
     count = 0
     # ratio between original size to model input size:
-    x_ratio = 3280/448
-    y_ratio = 2464/448
+    x_ratio = 3280/896
+    y_ratio = 2464/896
     for root, dirs, files in os.walk(dr):
         for index, file in enumerate(files):
             if file != 'desktop.ini':  # get over windows problem

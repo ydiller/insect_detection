@@ -322,9 +322,11 @@ def parse_flags():
                         help='lower boundary for box area')
     parser.add_argument('--upper_width', default=70,
                         help='upper boundary for box width and height')
-    parser.add_argument('--data_directory', default='../data/',
+    parser.add_argument('--image_size', default=896,
+                        help='size of model input image')
+    parser.add_argument('--data_directory', default='../field_data/',
                         help='path to data directory')
-    parser.add_argument('--csv_path', default='../train_bounding_boxes.csv',
+    parser.add_argument('--csv_path', default='../ field_train.csv',
                         help='path to save the generated csv file')
     parser.add_argument('--csv_train', default='../train_bounding_boxes.csv',
                         help='path of the csv file including the train data bounding boxes info')
@@ -336,13 +338,17 @@ def parse_flags():
                         help='path to results directory')
     parser.add_argument('--txt_path', default='../bounding_boxes/',
                         help='path to bounding boxes txt files')
-    parser.add_argument('--model_path', default='../weights.pt',
+    parser.add_argument('--model_load_path', default='../weights.pt',
+                        help='path to saved model')
+    parser.add_argument('--model_save_path', default='../weights.pt',
                         help='path to saved model')
     parser.add_argument('--json_directory', default='../json_annotations/',
                         help='path to json annotations files')
     parser.add_argument('--num_epochs', default=200,
                         help='number of epochs for training')
-    parser.add_argument('--save_model', default=True,
+    parser.add_argument('--save_model', default=False, action='store_true',
                         help='whether to save model dictionary or not')
+    parser.add_argument('--field_train', default=False, action='store_true',
+                        help='whether to train on field data or not')
     args = parser.parse_args()
     return args

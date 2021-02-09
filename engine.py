@@ -234,10 +234,11 @@ def write_field_detected_boxes(model, data_loader, device, opt, mode = ""):
         scores = list(pred[0]['scores'].detach().cpu().numpy())
         bbox_file = open(opt.txt_path + mode + "detections/" + img_name[0] + ".txt", "w")
         for i, pred_box in enumerate(boxes):
-            if(labels[i]==1):
-                label = 5
-            elif (labels[i] == 2):
-                label = 1
+            # if(labels[i]==1):
+            #     label = 5
+            # elif (labels[i] == 2):
+            #     label = 1
+            label = labels[i]  # on full field train
             score = scores[i]
             x, y, x2, y2 = pred_box
             line = [f"{label} {score} {x} {y} {x2-x} {y2-y}\n"]

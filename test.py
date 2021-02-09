@@ -16,17 +16,20 @@ def get_transform():
     return T.Compose(transforms)
 
 
-def augmentations():
+def augmentations(x_resize, y_resize):
     return A.Compose([
-        A.Resize(448, 448, interpolation=cv.INTER_AREA),
+        A.Resize(x_resize, y_resize, interpolation=cv.INTER_AREA),
     ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['category_ids']))
 
 
 def drawbox_from_prediction(img, boxes, scores, labels):
-    # category_id_to_name = {1: 'PEACH-FF', 2: 'S-HOUSE-FLY', 3: 'L-HOUSE-FLY', 4: 'OTHER', 5: 'MEDFLY',
-    #                        6: 'SPIDER', 7: 'L-ANT', 8: 'Ants', 9: 'Bee', 10: 'LACEWING ', 11: 'ORIENTAL-FF'}
-    category_id_to_name = {1: 'MEDFLY', 2: 'PEACH-FF'}  # temporary dict for lab dataset
-    category_id_to_color = {1: (0, 255, 0), 2: (0, 0, 255)}
+    category_id_to_name = {1: 'PEACH-FF', 2: 'S-HOUSE-FLY', 3: 'L-HOUSE-FLY', 4: 'OTHER', 5: 'MEDFLY',
+                           6: 'SPIDER', 7: 'L-ANT', 8: 'Ants', 9: 'Bee', 10: 'LACEWING ', 11: 'ORIENTAL-FF'}
+    category_id_to_color = {1: (255, 0, 0), 2: (255, 128, 0), 3: (255, 255, 0), 4: (128, 255, 0), 5: (0, 255, 0),
+                            6: (0, 255, 128), 7: (0, 255, 255), 8: (0, 128, 255), 9: (0, 0, 255), 10: (127, 0, 255),
+                            11: (255, 0, 255)}
+    # category_id_to_name = {1: 'MEDFLY', 2: 'PEACH-FF'}  # temporary dict for lab dataset
+    # category_id_to_color = {1: (0, 255, 0), 2: (0, 0, 255)}
     for j in range(len(boxes)):
         if scores[j] > 0.7:
             x1 = int(boxes[j][0])
@@ -45,9 +48,11 @@ def drawbox_from_prediction(img, boxes, scores, labels):
 def main():
     opt = utils.parse_flags()
     dr = opt.data_directory
+    x_resize = 896  # how to resize image before pushing it to model
+    y_resize = 896
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    num_classes = 12  # 10 classes + bg
-    dataset_test = FliesDataset(dr, opt.csv_test, get_transform(), augmentations())
+    num_classes = 12  # 11 classes + bg
+    dataset_test = FliesDataset(dr, opt.csv_test, get_transform(), augmentations(x_resize, y_resize))
     dataloader_test = torch.utils.data.DataLoader(
         dataset_test, batch_size=1, shuffle=False, num_workers=4,
         collate_fn=utils.collate_fn)
@@ -55,7 +60,7 @@ def main():
     model = fasterrcnn_resnet50_fpn(pretrained=False, progress=True, num_classes=num_classes, pretrained_backbone=True)
     params = [p for p in model.parameters() if p.requires_grad]
     # optimizer = torch.optim.SGD(params, lr=0.00008, momentum=0.9)
-    checkpoint = torch.load(opt.model_path)
+    checkpoint = torch.load(opt.model_load_path)
     model.load_state_dict(checkpoint['model_state_dict'])
     # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     epoch = checkpoint['epoch']

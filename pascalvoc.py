@@ -110,8 +110,7 @@ def createImages(dictGroundTruth, dictDetected):
         # Show detection and its GT
         # cv2.imshow(key, image)
         # cv2.waitKey()
-        cv2.imwrite("../results/pascal_rep_imgs/"+key,image)
-
+        cv2.imwrite("../results/pascal_rep_imgs/" + key, image)
 
 
 def getBoundingBoxes(directory,
@@ -198,8 +197,8 @@ VERSION = '0.1 (beta)'
 parser = argparse.ArgumentParser(
     prog='Object Detection Metrics - Pascal VOC',
     description='This project applies the most popular metrics used to evaluate object detection '
-    'algorithms.\nThe current implemention runs the Pascal VOC metrics.\nFor further references, '
-    'please check:\nhttps://github.com/rafaelpadilla/Object-Detection-Metrics',
+                'algorithms.\nThe current implemention runs the Pascal VOC metrics.\nFor further references, '
+                'please check:\nhttps://github.com/rafaelpadilla/Object-Detection-Metrics',
     epilog="Developed by: Rafael Padilla (rafael.padilla@smt.ufrj.br)")
 # formatter_class=RawTextHelpFormatter)
 parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + VERSION)
@@ -209,14 +208,14 @@ parser.add_argument(
     '-gt',
     '--gtfolder',
     dest='gtFolder',
-    default='../bounding_boxes/test/groundtruths',  #os.path.join(currentPath, 'groundtruths'),
+    default='../bounding_boxes/test/groundtruths',  # os.path.join(currentPath, 'groundtruths'),
     metavar='',
     help='folder containing your ground truth bounding boxes')
 parser.add_argument(
     '-det',
     '--detfolder',
     dest='detFolder',
-    default='../bounding_boxes/test/detections',  #os.path.join(currentPath, 'detections'),
+    default='../bounding_boxes/test/detections',  # os.path.join(currentPath, 'detections'),
     metavar='',
     help='folder containing your detected bounding boxes')
 # Optional
@@ -234,37 +233,38 @@ parser.add_argument(
     metavar='',
     default='xywh',
     help='format of the coordinates of the ground truth bounding boxes: '
-    '(\'xywh\': <left> <top> <width> <height>)'
-    ' or (\'xyrb\': <left> <top> <right> <bottom>)')
+         '(\'xywh\': <left> <top> <width> <height>)'
+         ' or (\'xyrb\': <left> <top> <right> <bottom>)')
 parser.add_argument(
     '-detformat',
     dest='detFormat',
     metavar='',
     default='xywh',
     help='format of the coordinates of the detected bounding boxes '
-    '(\'xywh\': <left> <top> <width> <height>) '
-    'or (\'xyrb\': <left> <top> <right> <bottom>)')
+         '(\'xywh\': <left> <top> <width> <height>) '
+         'or (\'xyrb\': <left> <top> <right> <bottom>)')
 parser.add_argument(
     '-gtcoords',
     dest='gtCoordinates',
     default='abs',
     metavar='',
     help='reference of the ground truth bounding box coordinates: absolute '
-    'values (\'abs\') or relative to its image size (\'rel\')')
+         'values (\'abs\') or relative to its image size (\'rel\')')
 parser.add_argument(
     '-detcoords',
     default='abs',
     dest='detCoordinates',
     metavar='',
     help='reference of the ground truth bounding box coordinates: '
-    'absolute values (\'abs\') or relative to its image size (\'rel\')')
+         'absolute values (\'abs\') or relative to its image size (\'rel\')')
 parser.add_argument(
     '-imgsize',
     dest='imgSize',
     metavar='',
     help='image size. Required if -gtcoords or -detcoords are \'rel\'')
 parser.add_argument(
-    '-sp', '--savepath', default='../results/pascalvoc', dest='savePath', metavar='', help='folder where the plots are saved')
+    '-sp', '--savepath', default='../results/pascalvoc', dest='savePath', metavar='',
+    help='folder where the plots are saved')
 parser.add_argument(
     '-np',
     '--noplot',
@@ -275,8 +275,25 @@ parser.add_argument(
     '-dt',
     '--data_directory',
     dest='data_directory',
-    default='../field_data/',
+    default='../../../field_data/',
     help='path to images directory')
+parser.add_argument(
+    '--csv_path',
+    default='../../../field_test0.csv',
+    help='path to csv file with test data')
+parser.add_argument(
+    '--results_directory',
+    default='../../../results/test_predictions_with_gt/',
+    help='path to results directory')
+
+parser.add_argument(
+    '--conf',
+    dest='confThreshold',
+    type=float,
+    default=0.5,
+    metavar='',
+    help='confidence threshold. Default 0.5')
+
 args = parser.parse_args()
 
 iouThreshold = args.iouThreshold
@@ -324,7 +341,7 @@ if len(errors) != 0:
     sys.exit()
 
 # Check if path to save results already exists and is not empty
-if os.path.isdir(savePath) and os.listdir(savePath) :
+if os.path.isdir(savePath) and os.listdir(savePath):
     key_pressed = ''
     while key_pressed.upper() not in ['Y', 'N']:
         print(f'Folder {savePath} already exists and may contain important results.\n')
@@ -360,7 +377,7 @@ allBoundingBoxes, allClasses = getBoundingBoxes(
     detFolder, False, detFormat, detCoordType, allBoundingBoxes, allClasses, imgSize=imgSize)
 allClasses.sort()
 
-dr = '../../../field_data'
+dr = args.data_directory
 img_index = []
 img_names = []
 class_list = []
@@ -373,75 +390,58 @@ cls_FP_list = []
 dbl_FP_list = []
 prec_list = []
 recall_list = []
+FP_rate_list = []
 count = 0
 count_flag = 0
+
+# clear results folder
+shutil.rmtree(args.results_directory, ignore_errors=True)
+os.makedirs(args.results_directory, exist_ok=True)
+
+
+# create list of image files in the test set
+test_images = pd.read_csv(args.csv_path)
+test_images = list(test_images['File path'].unique())
+test_images = [os.path.basename(t) for t in test_images]
 # draw bounding boxes of gt and detections on data images. and create csv file with eval. metrics
 for root, dirs, files in os.walk(dr):
     for index, file in enumerate(files):
         path = os.path.join(root, file)
-        img_name = Path(path)
-        img_name = img_name.stem
-        im = cv.imread(path)
-        im = cv.resize(im, (448, 448))
-        # print(img_name)
-        # Add bounding boxes
-        im = allBoundingBoxes.drawAllBoundingBoxes(im, img_name)
-        cv.imwrite('../../../results/test_predictions_with_gt/'+img_name+'.jpg', im)
-#         TP, FP, cl, GT = allBoundingBoxes.calculateMetricsPerImage(img_name, iouThreshold, MethodAveragePrecision)
-#         # print(f"image: {img_name} TP: {TP}, FP: {FP}, prec: {prec}, class: {cl}")
-#         for i, c in enumerate(cl):
-#             if(c=='1' or c=='5'):
-#                 img_index.append(count)
-#                 img_names.append(img_name)
-#                 class_list.append(c)
-#                 TP_list.append(TP[i])
-#                 FP_list.append(FP[i])
-#                 GT_list.append(GT[i])
-#                 FN_list.append(GT[i]-TP[i])
-#                 prec_list.append(np.divide(TP[i], (TP[i]+FP[i])))
-#                 recall_list.append(TP[i]/GT[i])
-#                 count_flag = 1 # turn on flag to decide if need to increment counter
-#         if count_flag:
-#             count += 1
-#         count_flag = 0
-# #print(class_list)
-# img_index = np.array(img_index)
-# img_names = np.array(img_names)
-# class_list = np.array(class_list)
-# TP_list = np.array(TP_list)
-# FP_list = np.array(FP_list)
-# GT_list = np.array(GT_list)
-# FN_list = np.array(FN_list)
-# prec_list = np.array(prec_list)
-# recall_list = np.array(recall_list)
-# data = np.column_stack((img_index, img_names, class_list, GT_list, TP_list, FP_list, FN_list, prec_list, recall_list))
-# dataset = pd.DataFrame(
-#     {'Index': data[:, 0], 'File path': data[:, 1], 'Class': data[:, 2], 'GT': data[:, 3], 'TP': data[:, 4], 'FP': data[:, 5],
-#      'FN': data[:, 6], 'Precision': data[:, 7], 'Recall': data[:, 8]})
-# dataset.to_csv('../../../eval_metrics.csv', index=False)
+        if file in test_images:
+            img_name = Path(path)
+            img_name = img_name.stem
+            im = cv.imread(path)
+            im = cv.resize(im, (896, 896))
+            # print(img_name)
+            # Add bounding boxes
+            im = allBoundingBoxes.drawAllBoundingBoxes(im, img_name, args.confThreshold)
+            cv.imwrite(args.results_directory + img_name + '.jpg', im)
 
-        detections = allBoundingBoxes.calculateMetricsPerImage(img_name, iouThreshold/2, 0.5, MethodAveragePrecision)
-        # print(f"image: {img_name} TP: {TP}, FP: {FP}, prec: {prec}, class: {cl}")
-        if detections['cls exist']:
-            img_index.append(count)
-            img_names.append(img_name)
-            # class_list.append(c)
-            TP_list.append(detections['trs TP'])
-            FP_list.append(detections['trs FP'])
-            loc_FP_list.append(detections['loc FP'])
-            cls_FP_list.append(detections['cls FP'])
-            dbl_FP_list.append(detections['dbl FP'])
-            GT_list.append(detections['total GT'])
-            FN_list.append(detections['total GT']-detections['trs TP'])
-            prec_list.append(detections['precision'])
-            recall_list.append(detections['recall'])
-            count += 1
-#print(class_list)
+            detections = allBoundingBoxes.calculateMetricsPerImage(img_name, iouThreshold / 2, args.confThreshold,
+                                                                   MethodAveragePrecision)
+            # print(f"image: {img_name} TP: {TP}, FP: {FP}, prec: {prec}, class: {cl}")
+            if detections['cls exist']:
+                img_index.append(count)
+                img_names.append(img_name)
+                # class_list.append(c)
+                TP_list.append(detections['trs TP'])
+                FP_list.append(detections['trs FP'])
+                loc_FP_list.append(detections['loc FP'])
+                cls_FP_list.append(detections['cls FP'])
+                dbl_FP_list.append(detections['dbl FP'])
+                GT_list.append(detections['total GT'])
+                FN_list.append(detections['total GT'] - detections['trs TP'])
+                prec_list.append(detections['precision'])
+                recall_list.append(detections['recall'])
+                FP_rate_list.append(detections['FP rate'])
+                count += 1
+
 img_index = np.array(img_index)
 img_names = np.array(img_names)
 # class_list = np.array(class_list)
 TP_arr = np.array(TP_list)
 FP_arr = np.array(FP_list)
+FP_rate_arr = np.array(FP_rate_list)
 loc_FP_arr = np.array(loc_FP_list)
 cls_FP_arr = np.array(cls_FP_list)
 dbl_FP_arr = np.array(dbl_FP_list)
@@ -449,11 +449,19 @@ GT_arr = np.array(GT_list)
 FN_arr = np.array(FN_list)
 prec_arr = np.array(prec_list)
 recall_arr = np.array(recall_list)
-data = np.column_stack((img_index, img_names, GT_arr, TP_arr, FP_arr, loc_FP_arr, cls_FP_arr, dbl_FP_arr, FN_arr, prec_arr, recall_arr))
+prec_avg = float(format(np.nanmean(prec_arr), '.2f'))
+rec_avg = float(format((np.nanmean(recall_arr)), '.2f'))
+data = np.column_stack((img_index, img_names, GT_arr, TP_arr, FP_arr, FP_rate_arr, loc_FP_arr, cls_FP_arr, dbl_FP_arr,
+                        FN_arr, prec_arr, recall_arr))
 dataset = pd.DataFrame(
-    {'Index': data[:, 0], 'File path': data[:, 1], 'GT': data[:, 2], 'TP': data[:, 3], 'FP': data[:, 4], 'loc_FP': data[:, 5],
-      'cls_FP': data[:, 6],  'dbl_FP': data[:, 7], 'FN': data[:, 8], 'Precision': data[:, 9], 'Recall': data[:, 10]})
+    {'Index': data[:, 0], 'File path': data[:, 1], 'GT': data[:, 2], 'TP': data[:, 3], 'FP': data[:, 4],
+     'FP_rate': data[:, 5], 'loc_FP': data[:, 6], 'cls_FP': data[:, 7], 'dbl_FP': data[:, 8], 'FN': data[:, 9],
+     'Precision': data[:, 10], 'Recall': data[:, 11], 'Precision avg': prec_avg, 'Recall avg': rec_avg})
 dataset.to_csv('../../../eval_metrics.csv', index=False)
+
+# ap_selected_classes = np.mean(prec_arr)
+# ar_selected_classes = np.mean(recall_arr)
+# print(f"ap for selected classes: {ap_selected_classes}, average recall for selected classes: {ar_selected_classes}")
 
 # compute object/background accuracy:
 total_tp = np.sum(TP_arr)
@@ -516,7 +524,3 @@ mAP_str = "{0:.2f}%".format(mAP * 100)
 print('mAP: %s' % mAP_str)
 f.write('\n\n\nmAP: %s' % mAP_str)
 print(f"obj/bg accuracy: {obj_accuracy:.3f}, classifcation accuracy: {cls_accuracy:.3f}")
-# opt = utils.parse_flags()
-
-
-
