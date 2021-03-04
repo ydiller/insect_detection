@@ -350,5 +350,7 @@ def parse_flags():
                         help='whether to save model dictionary or not')
     parser.add_argument('--field_train', default=False, action='store_true',
                         help='whether to train on field data or not')
+    parser.add_argument('--results_thresh', default=0.5,
+                        help='confidence threshold to filter results')
     args = parser.parse_args()
     return args

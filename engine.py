@@ -1,4 +1,9 @@
 import math
+import os
+import cv2 as cv
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 import sys
 import time
 import torch
@@ -6,6 +11,8 @@ import torchvision.models.detection.mask_rcnn
 from statistics import mean
 from coco_utils import get_coco_api_from_dataset
 from coco_eval import CocoEvaluator
+from datetime import datetime
+from collections import Counter
 import utils
 
 
@@ -245,6 +252,49 @@ def write_field_detected_boxes(model, data_loader, device, opt, mode = ""):
             bbox_file.writelines(line)
 
 
+def write_test_field_detected_boxes(model, data_loader, device, opt, mode = ""):
+    """
+    function to be used for real app where no labels are available
+    """
+    model.eval()
+    current_time = datetime.now().strftime("%d-%m-%Y-%H-%M-%S")
+    os.mkdir(opt.results_directory + current_time)
+    # results_file = open(f"{opt.results_directory}{current_time}/{current_time}.txt", "w")
+    conf_threshold = float(opt.results_thresh)
+    final_label_list = []
+    final_amount_list = []
+    final_names_list = []
+    for images, targets, img_name in data_loader:
+        images = [image[0].to(device) for image in images]
+        with torch.no_grad():
+            # model = model.cuda()
+            model = model.to(device)
+            pred = model(images)
+        labels = list(pred[0]['labels'].cpu().numpy())
+        boxes = list(pred[0]['boxes'].detach().cpu().numpy())
+        scores = list(pred[0]['scores'].detach().cpu().numpy())
+        filtered_bbox = []
+        filtered_labels = []
+        filtered_scores = []
+        [filtered_bbox.append(b) for i, b in enumerate(boxes) if scores[i] >= conf_threshold]
+        [filtered_labels.append(l) for i, l in enumerate(labels) if scores[i] >= conf_threshold]
+        [filtered_scores.append(s) for i, s in enumerate(scores) if scores[i] >= conf_threshold]
+        img_with_pred = drawbox_from_prediction(images[0].cpu().numpy(), filtered_bbox, filtered_scores, filtered_labels)
+        plt.imsave(f"{opt.results_directory}{current_time}/{img_name[0]}.jpg", img_with_pred)
+        labels_counter = Counter(filtered_labels)
+        for item, value in zip(labels_counter.keys(), labels_counter.values()):
+            final_label_list.append(item)
+            final_amount_list.append(value)
+            final_names_list.append(img_name[0])
+    names_arr = np.array(final_names_list)
+    labels_arr = np.array(final_label_list)
+    amount_arr = np.array(final_amount_list)
+    data = np.column_stack((names_arr, labels_arr, amount_arr))
+    dataset = pd.DataFrame({'File name': data[:, 0], 'Label': data[:, 1], 'Amount': data[:, 2]})
+    dataset.to_csv(f"{opt.results_directory}{current_time}/results.csv", index=False)
+
+
+
 def _get_iou_types(model):
     model_without_ddp = model
     if isinstance(model, torch.nn.parallel.DistributedDataParallel):
@@ -298,3 +348,33 @@ def evaluate(model, data_loader, device):
     coco_evaluator.summarize()
     torch.set_num_threads(n_threads)
     return coco_evaluator
+
+
+def drawbox_from_prediction(img, boxes, scores, labels):
+    category_id_to_name = {1: 'PEACH-FF', 2: 'S-HOUSE-FLY', 3: 'L-HOUSE-FLY', 4: 'OTHER', 5: 'MEDFLY',
+                           6: 'SPIDER', 7: 'L-ANT', 8: 'Ants', 9: 'Bee', 10: 'LACEWING ', 11: 'ORIENTAL-FF'}
+    # category_id_to_color = {1: (255, 0, 0), 2: (255, 128, 0), 3: (255, 255, 0), 4: (128, 255, 0), 5: (0, 255, 0),
+    #                         6: (0, 255, 128), 7: (0, 255, 255), 8: (0, 128, 255), 9: (0, 0, 255), 10: (127, 0, 255),
+    #                         11: (255, 0, 255)}
+    # category_id_to_name = {1: 'MEDFLY', 2: 'PEACH-FF'}  # temporary dict for lab dataset
+    # category_id_to_color = {1: (0, 255, 0), 2: (0, 0, 255)}
+    img = (img*255).astype(np.uint8)
+    img = np.moveaxis(img, 0, -1)
+    img = cv.UMat(img).get()
+    for j in range(len(boxes)):
+        x1 = int(boxes[j][0])
+        y1 = int(boxes[j][1])
+        x2 = int(boxes[j][2])
+        y2 = int(boxes[j][3])
+        class_name = category_id_to_name[labels[j]]
+        if labels[j] == 1:
+            color = (0, 153, 0)
+        elif labels[j] == 5:
+            color = (153, 0, 0)
+        else:
+            color = (0, 0, 153)
+        score = str(format(scores[j], '.2f'))
+        cv.rectangle(img, (x1, y1), (x2, y2), color=color, thickness=1)  # Draw Rectangle with the coordinates
+        cv.putText(img, class_name, (x1, y1), cv.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255),
+                   thickness=1)  # Write the prediction class
+    return img
