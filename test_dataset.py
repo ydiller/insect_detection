@@ -33,7 +33,7 @@ class TestDataset(object):
         #     labels.append(label)
         if self.augmentations is not None:
             augmentations = self.augmentations(image=img)
-            img = augmentations['image']
+            img = augmentations["image"]
         # labels = np.asarray(labels)
         # labels = torch.from_numpy(labels.astype('int64'))  # original: 'long'
         # boxes = torch.as_tensor(boxes, dtype=torch.float32)
@@ -44,7 +44,7 @@ class TestDataset(object):
         # target = {"boxes": boxes, "labels": labels, "image_id": image_id, "area": area, "iscrowd": iscrowd}
         target = None
         if self.transforms is not None:
-              # transforms require target
+            # transforms require target
             img = self.transforms(img, target)
         return img, target, img_name
 

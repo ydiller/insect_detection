@@ -10,8 +10,12 @@ def train_test_split(dir_path):
     for root, dirs, files in os.walk(dir_path):
         for file in files:
             json_list.append(os.path.join(root, file))
-    train, test = model_selection.train_test_split(json_list, train_size=0.8, test_size=0.2)
-    train, val = model_selection.train_test_split(train, train_size=0.75, test_size=0.25)
+    train, test = model_selection.train_test_split(
+        json_list, train_size=0.8, test_size=0.2
+    )
+    train, val = model_selection.train_test_split(
+        train, train_size=0.75, test_size=0.25
+    )
 
     return train, val, test
 
@@ -19,7 +23,7 @@ def train_test_split(dir_path):
 def main():
     opt = utils.parse_flags()
     dr = opt.json_directory
-    for i in range(7,8):
+    for i in range(7, 8):
         train_list, val_list, test_list = train_test_split(dr)
         if os.path.exists(f"../json_annotations{i}"):
             shutil.rmtree(f"../json_annotations{i}")
@@ -37,6 +41,5 @@ def main():
             shutil.copyfile(file, f"../json_annotations{i}/test/{short_file_name}")
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

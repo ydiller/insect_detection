@@ -15,11 +15,19 @@ def train_test_split(dir_path):
             if "bz" in dir:
                 bz_list.append(dir)
 
-    cc_train, cc_test = model_selection.train_test_split(cc_list, train_size=0.8, test_size=0.2)
-    cc_train, cc_val = model_selection.train_test_split(cc_train, train_size=0.75, test_size=0.25)
+    cc_train, cc_test = model_selection.train_test_split(
+        cc_list, train_size=0.8, test_size=0.2
+    )
+    cc_train, cc_val = model_selection.train_test_split(
+        cc_train, train_size=0.75, test_size=0.25
+    )
 
-    bz_train, bz_test = model_selection.train_test_split(bz_list, train_size=0.8, test_size=0.2)
-    bz_train, bz_val = model_selection.train_test_split(bz_train, train_size=0.75, test_size=0.25)
+    bz_train, bz_test = model_selection.train_test_split(
+        bz_list, train_size=0.8, test_size=0.2
+    )
+    bz_train, bz_val = model_selection.train_test_split(
+        bz_train, train_size=0.75, test_size=0.25
+    )
 
     return cc_train, cc_val, cc_test, bz_train, bz_val, bz_test
 
@@ -63,5 +71,5 @@ def main():
         save_without_resize("/images/" + dir, "/data/bz/test/")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -19,12 +19,12 @@ import utils
 def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
     model.train()
     metric_logger = utils.MetricLogger(delimiter="  ")
-    metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
-    header = 'Epoch: [{}]'.format(epoch)
+    metric_logger.add_meter("lr", utils.SmoothedValue(window_size=1, fmt="{value:.6f}"))
+    header = "Epoch: [{}]".format(epoch)
 
     lr_scheduler = None
     if epoch == 0:
-        warmup_factor = 1. / 1000
+        warmup_factor = 1.0 / 1000
         warmup_iters = min(1000, len(data_loader) - 1)
 
         lr_scheduler = utils.warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
@@ -50,15 +50,21 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
         # reduce losses over all GPUs for logging purposes
         loss_dict_reduced = utils.reduce_dict(loss_dict)
         # previous version: losses_reduced = sum(loss for loss in loss_dict_reduced.values())
-        losses_reduced = (loss_dict_reduced['loss_classifier'].item() + loss_dict_reduced['loss_objectness'].item()
-        + 0.5*loss_dict_reduced['loss_box_reg'].item() + 0.5*loss_dict_reduced['loss_rpn_box_reg'].item())
-        loss_value = losses_reduced # previous version: loss_value = losses_reduced.item()
+        losses_reduced = (
+            loss_dict_reduced["loss_classifier"].item()
+            + loss_dict_reduced["loss_objectness"].item()
+            + 0.5 * loss_dict_reduced["loss_box_reg"].item()
+            + 0.5 * loss_dict_reduced["loss_rpn_box_reg"].item()
+        )
+        loss_value = (
+            losses_reduced  # previous version: loss_value = losses_reduced.item()
+        )
         running_loss += loss_value
 
-        loss_classifier += loss_dict_reduced['loss_classifier'].item()
-        loss_box_reg += loss_dict_reduced['loss_box_reg'].item()
-        loss_objectness += loss_dict_reduced['loss_objectness'].item()
-        loss_rpn_box_reg += loss_dict_reduced['loss_rpn_box_reg'].item()
+        loss_classifier += loss_dict_reduced["loss_classifier"].item()
+        loss_box_reg += loss_dict_reduced["loss_box_reg"].item()
+        loss_objectness += loss_dict_reduced["loss_objectness"].item()
+        loss_rpn_box_reg += loss_dict_reduced["loss_rpn_box_reg"].item()
 
         if not math.isfinite(loss_value):
             print("Loss is {}, stopping training".format(loss_value))
@@ -75,12 +81,18 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
         metric_logger.update(loss=losses_reduced, **loss_dict_reduced)
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
 
-    running_loss = running_loss/len(data_loader)
-    loss_classifier = loss_classifier/len(data_loader)
-    loss_box_reg = loss_box_reg/len(data_loader)
-    loss_objectness = loss_objectness/len(data_loader)
-    loss_rpn_box_reg = loss_rpn_box_reg/len(data_loader)
-    return loss_classifier, loss_box_reg, loss_objectness, loss_rpn_box_reg, running_loss
+    running_loss = running_loss / len(data_loader)
+    loss_classifier = loss_classifier / len(data_loader)
+    loss_box_reg = loss_box_reg / len(data_loader)
+    loss_objectness = loss_objectness / len(data_loader)
+    loss_rpn_box_reg = loss_rpn_box_reg / len(data_loader)
+    return (
+        loss_classifier,
+        loss_box_reg,
+        loss_objectness,
+        loss_rpn_box_reg,
+        running_loss,
+    )
 
 
 def get_val_loss(model, data_loader_val, device):
@@ -100,42 +112,48 @@ def get_val_loss(model, data_loader_val, device):
             losses_reduced = sum(loss for loss in val_loss_dict_reduced.values())
             loss_value = losses_reduced.item()
             running_loss += loss_value
-            loss_classifier += val_loss_dict_reduced['loss_classifier'].item()
-            loss_box_reg += val_loss_dict_reduced['loss_box_reg'].item()
-            loss_objectness += val_loss_dict_reduced['loss_objectness'].item()
-            loss_rpn_box_reg += val_loss_dict_reduced['loss_rpn_box_reg'].item()
+            loss_classifier += val_loss_dict_reduced["loss_classifier"].item()
+            loss_box_reg += val_loss_dict_reduced["loss_box_reg"].item()
+            loss_objectness += val_loss_dict_reduced["loss_objectness"].item()
+            loss_rpn_box_reg += val_loss_dict_reduced["loss_rpn_box_reg"].item()
 
     running_loss = running_loss / len(data_loader_val)
-    loss_classifier = loss_classifier/len(data_loader_val)
-    loss_box_reg = loss_box_reg/len(data_loader_val)
-    loss_objectness = loss_objectness/len(data_loader_val)
-    loss_rpn_box_reg = loss_rpn_box_reg/len(data_loader_val)
-    return loss_classifier, loss_box_reg, loss_objectness, loss_rpn_box_reg, running_loss
+    loss_classifier = loss_classifier / len(data_loader_val)
+    loss_box_reg = loss_box_reg / len(data_loader_val)
+    loss_objectness = loss_objectness / len(data_loader_val)
+    loss_rpn_box_reg = loss_rpn_box_reg / len(data_loader_val)
+    return (
+        loss_classifier,
+        loss_box_reg,
+        loss_objectness,
+        loss_rpn_box_reg,
+        running_loss,
+    )
 
 
 def get_scores(model, data_loader, device):
     model.eval()
     running_accuracy = 0
-    for images, targets , _ in data_loader:
+    for images, targets, _ in data_loader:
         images = [image.to(device) for image in images]
 
         with torch.no_grad():
             model = model.cuda()
             pred = model(images)
 
-        boxes = list(pred[0]['boxes'].detach().cpu().numpy())
-        scores = list(pred[0]['scores'].detach().cpu().numpy())
-        accuracy = sum(score for score in scores)/len(boxes)
+        boxes = list(pred[0]["boxes"].detach().cpu().numpy())
+        scores = list(pred[0]["scores"].detach().cpu().numpy())
+        accuracy = sum(score for score in scores) / len(boxes)
         running_accuracy += accuracy
 
-    running_accuracy = running_accuracy/len(data_loader)
+    running_accuracy = running_accuracy / len(data_loader)
     return running_accuracy
 
 
 def get_distance(predicted_center, gt_center):
     gt_x, gt_y = gt_center
     pred_x, pred_y = predicted_center
-    distance = (pred_y - gt_y)**2 + (pred_x - gt_x)**2
+    distance = (pred_y - gt_y) ** 2 + (pred_x - gt_x) ** 2
     return distance
 
 
@@ -143,7 +161,7 @@ def intersect_over_union(bound_rect1, bound_rect2):
 
     x1_1, y1_1, x1_2, y1_2 = bound_rect1
     x2_1, y2_1, x2_2, y2_2 = bound_rect2
-    w1 = x1_2-x1_1
+    w1 = x1_2 - x1_1
     h1 = y1_2 - y1_1
     w2 = x2_2 - x2_1
     h2 = y2_2 - y2_1
@@ -168,39 +186,43 @@ def get_accuracy(model, data_loader, device, score_threshold=0.7, iou_threshold=
             model = model.cuda()
             pred = model(images)
 
-        labels = list(pred[0]['labels'].cpu().numpy())
-        boxes = list(pred[0]['boxes'].detach().cpu().numpy())
-        scores = list(pred[0]['scores'].detach().cpu().numpy())
+        labels = list(pred[0]["labels"].cpu().numpy())
+        boxes = list(pred[0]["boxes"].detach().cpu().numpy())
+        scores = list(pred[0]["scores"].detach().cpu().numpy())
 
-        gt_boxes = targets[0]['boxes']
-        gt_labels = targets[0]['labels']
+        gt_boxes = targets[0]["boxes"]
+        gt_labels = targets[0]["labels"]
         gt_boxes_center = []
         pred_boxes_center = []
         # threshold_distance = (img_size / 100) ** 2 + (img_size / 100) ** 2
         threshold_distance = 5
         for i, gt_box in enumerate(gt_boxes):
             ioumax = 0
-            gt_index = -1 # index of ground truth box
-            pred_index = -2 # index of detected box
+            gt_index = -1  # index of ground truth box
+            pred_index = -2  # index of detected box
             for j, pred_box in enumerate(boxes):
                 if scores[j] > score_threshold:
                     iou = intersect_over_union(gt_box, pred_box)
-                    #print(f'iou {j}: {iou}')
+                    # print(f'iou {j}: {iou}')
                     if iou > iou_threshold:
                         if iou > ioumax:
                             ioumax = iou  # ioumax stores the maximum iou among the detected boxes
-                            gt_index = i  # stores the index of the gt box with the maximal iou
+                            gt_index = (
+                                i  # stores the index of the gt box with the maximal iou
+                            )
                             pred_index = j  # stores the index of the detected box with the maximal iou
             if gt_index != -1 and pred_index != -2:
-                if (gt_labels[gt_index] == labels[pred_index]) and (ioumax > iou_threshold):
+                if (gt_labels[gt_index] == labels[pred_index]) and (
+                    ioumax > iou_threshold
+                ):
                     running_accuracy += 1
-        accuracy.append(running_accuracy/len(gt_boxes))
+        accuracy.append(running_accuracy / len(gt_boxes))
     total_accuracy = mean(accuracy)
 
     return total_accuracy
 
 
-def write_detected_boxes(model, data_loader, device, opt, mode = ""):
+def write_detected_boxes(model, data_loader, device, opt, mode=""):
     model.eval()
     accuracy = []
     for images, targets, img_name in data_loader:
@@ -212,10 +234,12 @@ def write_detected_boxes(model, data_loader, device, opt, mode = ""):
             model = model.cuda()
             pred = model(images)
 
-        labels = list(pred[0]['labels'].cpu().numpy())
-        boxes = list(pred[0]['boxes'].detach().cpu().numpy())
-        scores = list(pred[0]['scores'].detach().cpu().numpy())
-        bbox_file = open(opt.txt_path + mode + "detections/" + img_name[0] + ".txt", "w")
+        labels = list(pred[0]["labels"].cpu().numpy())
+        boxes = list(pred[0]["boxes"].detach().cpu().numpy())
+        scores = list(pred[0]["scores"].detach().cpu().numpy())
+        bbox_file = open(
+            opt.txt_path + mode + "detections/" + img_name[0] + ".txt", "w"
+        )
         for i, pred_box in enumerate(boxes):
             label = labels[i]
             score = scores[i]
@@ -224,7 +248,7 @@ def write_detected_boxes(model, data_loader, device, opt, mode = ""):
             bbox_file.writelines(line)
 
 
-def write_field_detected_boxes(model, data_loader, device, opt, mode = ""):
+def write_field_detected_boxes(model, data_loader, device, opt, mode=""):
     model.eval()
     accuracy = []
     for images, targets, img_name in data_loader:
@@ -236,10 +260,12 @@ def write_field_detected_boxes(model, data_loader, device, opt, mode = ""):
             model = model.cuda()
             pred = model(images)
 
-        labels = list(pred[0]['labels'].cpu().numpy())
-        boxes = list(pred[0]['boxes'].detach().cpu().numpy())
-        scores = list(pred[0]['scores'].detach().cpu().numpy())
-        bbox_file = open(opt.txt_path + mode + "detections/" + img_name[0] + ".txt", "w")
+        labels = list(pred[0]["labels"].cpu().numpy())
+        boxes = list(pred[0]["boxes"].detach().cpu().numpy())
+        scores = list(pred[0]["scores"].detach().cpu().numpy())
+        bbox_file = open(
+            opt.txt_path + mode + "detections/" + img_name[0] + ".txt", "w"
+        )
         for i, pred_box in enumerate(boxes):
             # if(labels[i]==1):
             #     label = 5
@@ -252,7 +278,7 @@ def write_field_detected_boxes(model, data_loader, device, opt, mode = ""):
             bbox_file.writelines(line)
 
 
-def write_test_field_detected_boxes(model, data_loader, device, opt, mode = ""):
+def write_test_field_detected_boxes(model, data_loader, device, opt, mode=""):
     """
     function to be used for real app where no labels are available
     """
@@ -270,17 +296,33 @@ def write_test_field_detected_boxes(model, data_loader, device, opt, mode = ""):
             # model = model.cuda()
             model = model.to(device)
             pred = model(images)
-        labels = list(pred[0]['labels'].cpu().numpy())
-        boxes = list(pred[0]['boxes'].detach().cpu().numpy())
-        scores = list(pred[0]['scores'].detach().cpu().numpy())
+        labels = list(pred[0]["labels"].cpu().numpy())
+        boxes = list(pred[0]["boxes"].detach().cpu().numpy())
+        scores = list(pred[0]["scores"].detach().cpu().numpy())
         filtered_bbox = []
         filtered_labels = []
         filtered_scores = []
-        [filtered_bbox.append(b) for i, b in enumerate(boxes) if scores[i] >= conf_threshold]
-        [filtered_labels.append(l) for i, l in enumerate(labels) if scores[i] >= conf_threshold]
-        [filtered_scores.append(s) for i, s in enumerate(scores) if scores[i] >= conf_threshold]
-        img_with_pred = drawbox_from_prediction(images[0].cpu().numpy(), filtered_bbox, filtered_scores, filtered_labels)
-        plt.imsave(f"{opt.results_directory}{current_time}/{img_name[0]}.jpg", img_with_pred)
+        [
+            filtered_bbox.append(b)
+            for i, b in enumerate(boxes)
+            if scores[i] >= conf_threshold
+        ]
+        [
+            filtered_labels.append(l)
+            for i, l in enumerate(labels)
+            if scores[i] >= conf_threshold
+        ]
+        [
+            filtered_scores.append(s)
+            for i, s in enumerate(scores)
+            if scores[i] >= conf_threshold
+        ]
+        img_with_pred = drawbox_from_prediction(
+            images[0].cpu().numpy(), filtered_bbox, filtered_scores, filtered_labels
+        )
+        plt.imsave(
+            f"{opt.results_directory}{current_time}/{img_name[0]}.jpg", img_with_pred
+        )
         labels_counter = Counter(filtered_labels)
         for item, value in zip(labels_counter.keys(), labels_counter.values()):
             final_label_list.append(item)
@@ -290,9 +332,10 @@ def write_test_field_detected_boxes(model, data_loader, device, opt, mode = ""):
     labels_arr = np.array(final_label_list)
     amount_arr = np.array(final_amount_list)
     data = np.column_stack((names_arr, labels_arr, amount_arr))
-    dataset = pd.DataFrame({'File name': data[:, 0], 'Label': data[:, 1], 'Amount': data[:, 2]})
+    dataset = pd.DataFrame(
+        {"File name": data[:, 0], "Label": data[:, 1], "Amount": data[:, 2]}
+    )
     dataset.to_csv(f"{opt.results_directory}{current_time}/results.csv", index=False)
-
 
 
 def _get_iou_types(model):
@@ -315,7 +358,7 @@ def evaluate(model, data_loader, device):
     cpu_device = torch.device("cpu")
     model.eval()
     metric_logger = utils.MetricLogger(delimiter="  ")
-    header = 'Test:'
+    header = "Test:"
 
     coco = get_coco_api_from_dataset(data_loader.dataset)
     iou_types = _get_iou_types(model)
@@ -332,12 +375,15 @@ def evaluate(model, data_loader, device):
         outputs = [{k: v.to(cpu_device) for k, v in t.items()} for t in outputs]
         model_time = time.time() - model_time
 
-        res = {target["image_id"].item(): output for target, output in zip(targets, outputs)}
+        res = {
+            target["image_id"].item(): output
+            for target, output in zip(targets, outputs)
+        }
         evaluator_time = time.time()
         coco_evaluator.update(res)
         evaluator_time = time.time() - evaluator_time
         metric_logger.update(model_time=model_time, evaluator_time=evaluator_time)
-    
+
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
@@ -351,14 +397,25 @@ def evaluate(model, data_loader, device):
 
 
 def drawbox_from_prediction(img, boxes, scores, labels):
-    category_id_to_name = {1: 'PEACH-FF', 2: 'S-HOUSE-FLY', 3: 'L-HOUSE-FLY', 4: 'OTHER', 5: 'MEDFLY',
-                           6: 'SPIDER', 7: 'L-ANT', 8: 'Ants', 9: 'Bee', 10: 'LACEWING ', 11: 'ORIENTAL-FF'}
+    category_id_to_name = {
+        1: "PEACH-FF",
+        2: "S-HOUSE-FLY",
+        3: "L-HOUSE-FLY",
+        4: "OTHER",
+        5: "MEDFLY",
+        6: "SPIDER",
+        7: "L-ANT",
+        8: "Ants",
+        9: "Bee",
+        10: "LACEWING ",
+        11: "ORIENTAL-FF",
+    }
     # category_id_to_color = {1: (255, 0, 0), 2: (255, 128, 0), 3: (255, 255, 0), 4: (128, 255, 0), 5: (0, 255, 0),
     #                         6: (0, 255, 128), 7: (0, 255, 255), 8: (0, 128, 255), 9: (0, 0, 255), 10: (127, 0, 255),
     #                         11: (255, 0, 255)}
     # category_id_to_name = {1: 'MEDFLY', 2: 'PEACH-FF'}  # temporary dict for lab dataset
     # category_id_to_color = {1: (0, 255, 0), 2: (0, 0, 255)}
-    img = (img*255).astype(np.uint8)
+    img = (img * 255).astype(np.uint8)
     img = np.moveaxis(img, 0, -1)
     img = cv.UMat(img).get()
     for j in range(len(boxes)):
@@ -373,8 +430,17 @@ def drawbox_from_prediction(img, boxes, scores, labels):
             color = (153, 0, 0)
         else:
             color = (0, 0, 153)
-        score = str(format(scores[j], '.2f'))
-        cv.rectangle(img, (x1, y1), (x2, y2), color=color, thickness=1)  # Draw Rectangle with the coordinates
-        cv.putText(img, class_name, (x1, y1), cv.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255),
-                   thickness=1)  # Write the prediction class
+        score = str(format(scores[j], ".2f"))
+        cv.rectangle(
+            img, (x1, y1), (x2, y2), color=color, thickness=1
+        )  # Draw Rectangle with the coordinates
+        cv.putText(
+            img,
+            class_name,
+            (x1, y1),
+            cv.FONT_HERSHEY_SIMPLEX,
+            0.35,
+            (255, 255, 255),
+            thickness=1,
+        )  # Write the prediction class
     return img
