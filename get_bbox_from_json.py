@@ -91,6 +91,8 @@ def main():
                         line = [f"{label} {x/x_ratio} {y/y_ratio} {w/x_ratio} {h/y_ratio}\n"]
                         bbox_file.writelines(line)  # add new bbox to txt file
                         class_flag = True
+                        if label == 11:
+                            print(f'label 11 found at {path}')
                 if class_flag:
                     count += 1
                 else:
@@ -111,8 +113,8 @@ def main():
     # drawbox(opt.csv_path,
     #         opt.results_directory)  # draw and save the images included in the csv file with the bboxes
 
-    cv.waitKey(0)
-    cv.destroyAllWindows()
+    # cv.waitKey(0)
+    # cv.destroyAllWindows()
 
 
 if __name__ == '__main__':

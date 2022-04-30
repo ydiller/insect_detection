@@ -19,7 +19,7 @@ def train_test_split(dir_path):
 def main():
     opt = utils.parse_flags()
     dr = opt.json_directory
-    for i in range(7,8):
+    for i in range(8,9):
         train_list, val_list, test_list = train_test_split(dr)
         if os.path.exists(f"../json_annotations{i}"):
             shutil.rmtree(f"../json_annotations{i}")

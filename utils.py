@@ -352,5 +352,7 @@ def parse_flags():
                         help='whether to train on field data or not')
     parser.add_argument('--results_thresh', default=0.5,
                         help='confidence threshold to filter results')
+    parser.add_argument('--lr', default=0.005,
+                        help='learning rate')
     args = parser.parse_args()
     return args

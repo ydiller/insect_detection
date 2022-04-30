@@ -27,6 +27,23 @@ from BoundingBoxes import BoundingBoxes
 from Evaluator import *
 from metrics_utils import *
 
+CLASSES_NUM = 11
+
+
+def get_precision_from_cm(label, confusion_matrix):
+    col = confusion_matrix[:, label]
+    return confusion_matrix[label, label] / col.sum()
+
+
+def get_recall_from_cm(label, confusion_matrix):
+    row = confusion_matrix[label, :]
+    return confusion_matrix[label, label] / row.sum()
+
+
+def total_accuracy(confusion_matrix):
+    diagonal_sum = confusion_matrix.trace()
+    sum_of_all_elements = confusion_matrix.sum()
+    return diagonal_sum / sum_of_all_elements
 
 # Validate formats
 def ValidateFormats(argFormat, argName, errors):
@@ -393,10 +410,11 @@ recall_list = []
 FP_rate_list = []
 count = 0
 count_flag = 0
+confusion_matrrix = np.zeros((CLASSES_NUM+1, CLASSES_NUM+1))
 
 # clear results folder
-shutil.rmtree(args.results_directory, ignore_errors=True)
-os.makedirs(args.results_directory, exist_ok=True)
+# shutil.rmtree(args.results_directory, ignore_errors=True)
+# os.makedirs(args.results_directory, exist_ok=True)
 
 
 # create list of image files in the test set
@@ -435,6 +453,7 @@ for root, dirs, files in os.walk(dr):
                 recall_list.append(detections['recall'])
                 FP_rate_list.append(detections['FP rate'])
                 count += 1
+                confusion_matrrix += detections['confusion matrix']
 
 img_index = np.array(img_index)
 img_names = np.array(img_names)
@@ -480,7 +499,7 @@ acc_AP = 0
 validClasses = 0
 
 # Plot Precision x Recall curve
-detections = evaluator.PlotPrecisionRecallCurve(
+detections, prec_recall_list = evaluator.PlotPrecisionRecallCurve(
     allBoundingBoxes,  # Object containing all bounding boxes (ground truths and detections)
     IOUThreshold=iouThreshold,  # IOU threshold
     method=MethodAveragePrecision.EveryPointInterpolation,
@@ -488,6 +507,16 @@ detections = evaluator.PlotPrecisionRecallCurve(
     showInterpolatedPrecision=False,  # Don't plot the interpolated precision curve
     savePath=savePath,
     showGraphic=False)
+
+f = open(os.path.join(savePath, 'results_better_precision_recall.txt'), 'w')
+for i, t in enumerate(prec_recall_list):
+    f.write(f'Class {prec_recall_list[i][2]}\n')
+    rec = ['%.6f' % r for r in prec_recall_list[i][0]]
+    prec = ['%.6f' % p for p in prec_recall_list[i][1]]
+    f.write('\nRecall: %s' % rec)
+    f.write('\nPrecision: %s \n' % prec)
+
+
 
 f = open(os.path.join(savePath, 'results.txt'), 'w')
 f.write('Object Detection Metrics\n')
@@ -523,4 +552,17 @@ mAP = acc_AP / validClasses
 mAP_str = "{0:.2f}%".format(mAP * 100)
 print('mAP: %s' % mAP_str)
 f.write('\n\n\nmAP: %s' % mAP_str)
-print(f"obj/bg accuracy: {obj_accuracy:.3f}, classifcation accuracy: {cls_accuracy:.3f}")
+# print(f"obj/bg accuracy: {obj_accuracy:.3f}, classifcation accuracy: {cls_accuracy:.3f}")
+
+# calculate accuracy from confusion matrix
+print(confusion_matrrix[1:, 1:])
+f.write('\n\nConfusion matrix:\n %s' % confusion_matrrix[1:, 1:])
+print("label precision recall")
+f.write('\n\nlabel class. accuracy')
+for label in range(CLASSES_NUM+1):
+    print(f"{label:5d} {get_precision_from_cm(label, confusion_matrrix):9.3f}"
+          f" {get_recall_from_cm(label, confusion_matrrix):6.3f}")
+    f.write(f"\n{label:5d} {get_precision_from_cm(label, confusion_matrrix):9.3f}"
+            f" {get_recall_from_cm(label, confusion_matrrix):6.3f}")
+print(f'total accuracy: {total_accuracy(confusion_matrrix)}')
+f.write('\nTotal accuracy:\n %s' % total_accuracy(confusion_matrrix))

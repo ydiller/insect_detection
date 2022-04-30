@@ -67,7 +67,7 @@ def draw_bounding_box_from_dataloader(img, target):
     return img
 
 
-def plot_loss(loss, val_loss, title, filename,large_scale=False):
+def plot_loss(loss, val_loss, title, filename, large_scale=False):
     # set font sizes for plt
     SMALL_SIZE = 12
     MEDIUM_SIZE = 14
@@ -112,7 +112,7 @@ def main():
     # csv_train = '../field_train.csv'
     # csv_val = '../field_val.csv'
     # csv_test = '../field_test.csv'
-    num_classes = 12  # 11 classes + bg
+    num_classes = 11  # 11 classes + bg
     x_resize = opt.image_size  # how to resize image before pushing it to model
     y_resize = opt.image_size
     # train on lab data:
@@ -136,21 +136,21 @@ def main():
         collate_fn=utils.collate_fn)
 
     # save samples of train and test datasets with boxes
-    test_iter = iter(dataloader_test)
-    for i in range(len(dataset_test)):
-        img, target, img_name = next(test_iter)
-        img_ = draw_bounding_box_from_dataloader(img, target[0])
-        plt.imsave(opt.results_directory+'dataset_samples/'+img_name[0]+'_test_sample.jpg', img_)
-    val_iter = iter(dataloader_val)
-    for i in range(len(dataset_val)):
-        img, target, img_name = next(val_iter)
-        img_ = draw_bounding_box_from_dataloader(img, target[0])
-        plt.imsave(opt.results_directory+'dataset_samples/'+img_name[0]+'_val_sample.jpg', img_)
-    train_iter = iter(dataloader_train)
-    for i in range(len(dataset_train)):
-        img, target, img_name = next(train_iter)
-        img_ = draw_bounding_box_from_dataloader(img, target[0])
-        plt.imsave(opt.results_directory+'dataset_samples/'+img_name[0]+'_train_sample.jpg', img_)
+    # test_iter = iter(dataloader_test)
+    # for i in range(len(dataset_test)):
+    #     img, target, img_name = next(test_iter)
+    #     img_ = draw_bounding_box_from_dataloader(img, target[0])
+    #     plt.imsave(opt.results_directory+'dataset_samples/'+img_name[0]+'_test_sample.jpg', img_)
+    # val_iter = iter(dataloader_val)
+    # for i in range(len(dataset_val)):
+    #     img, target, img_name = next(val_iter)
+    #     img_ = draw_bounding_box_from_dataloader(img, target[0])
+    #     plt.imsave(opt.results_directory+'dataset_samples/'+img_name[0]+'_val_sample.jpg', img_)
+    # train_iter = iter(dataloader_train)
+    # for i in range(len(dataset_train)):
+    #     img, target, img_name = next(train_iter)
+    #     img_ = draw_bounding_box_from_dataloader(img, target[0])
+    #     plt.imsave(opt.results_directory+'dataset_samples/'+img_name[0]+'_train_sample.jpg', img_)
 
     # get the model using our helper function
     model = fasterrcnn_resnet50_fpn(pretrained=False, progress=True, num_classes=num_classes, pretrained_backbone=True)
@@ -159,7 +159,7 @@ def main():
 
     # construct an optimizer
     params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.SGD(params, lr=0.002, momentum=0.9)
+    optimizer = torch.optim.SGD(params, lr=opt.lr, momentum=0.9)
     if opt.field_train:
         print("loading saved model")
         checkpoint = torch.load(opt.model_load_path)
@@ -200,7 +200,7 @@ def main():
             val_acc = get_accuracy(model, dataloader_val, device)
         if v_loss < min_v_loss:
             if opt.save_model:
-                print (f"save model {opt.save_model}")
+                print(f'save model {opt.save_model}')
                 torch.save({
                     'epoch': epoch,
                     'model_state_dict': model.state_dict(),
@@ -208,6 +208,7 @@ def main():
                     'val_acc': val_acc,
                     'train_acc': train_acc
                 }, opt.model_save_path)
+            min_v_loss = v_loss
             max_val_acc = val_acc
         if train_acc >= max_train_acc:
             max_train_acc = train_acc
@@ -249,15 +250,15 @@ def main():
               opt.results_directory+"objectness_loss.png")
     plot_loss(loss_rpn_box_reg_list, loss_rpn_box_reg_val, "RPN bounding box regressor loss",
               opt.results_directory+"rpn_loss.png")
-
-    plt.figure()
-    plt.plot(train_acc_list, label="Train accuracy")
-    plt.plot(val_acc_list, label="Validation accuracy")
-    plt.legend(loc="lower right")
-    plt.title('Classification accuracy vs epochs')
-    plt.savefig(opt.results_directory+"acc.png")
+    #
+    # plt.figure()
+    # plt.plot(train_acc_list, label="Train accuracy")
+    # plt.plot(val_acc_list, label="Validation accuracy")
+    # plt.legend(loc="lower right")
+    # plt.title('Classification accuracy vs epochs')
+    # plt.savefig(opt.results_directory+"acc.png")
     # write text file with loss and acc data
-    bbox_file = open(opt.results_directory+"minimum_loss_log.txt", "w")
+    bbox_file = open(opt.results_directory+"minimum_loss_log_0009.txt", "w")
     line = f"min train class. loss: {min_t_calssification_loss}  | min train objectness loss: {min_t_obj_loss} | max " \
            f"train acc: {max_train_acc} | \n min val class. loss: {min_v_calssification_loss}  | min val objectness" \
            f" loss: {min_v_obj_loss} |max val accuracy {max_val_acc} "
@@ -265,7 +266,7 @@ def main():
     # write text files with detected bounding boxes
     write_detected_boxes(model, dataloader_train, device, opt, "train/")
     write_detected_boxes(model, dataloader_val, device, opt, "val/")
-    # write_detected_boxes(model, dataloader_test, device, opt, "test/")
+    write_detected_boxes(model, dataloader_test, device, opt, "test/")
 
     # make predictions on test images
     # pred_iter = iter(dataloader_test)

@@ -54,7 +54,7 @@ def main():
     num_classes = 12  # 11 classes + bg
     dataset_test = FliesDataset(dr, opt.csv_test, get_transform(), augmentations(x_resize, y_resize))
     dataloader_test = torch.utils.data.DataLoader(
-        dataset_test, batch_size=1, shuffle=False, num_workers=4,
+        dataset_test, batch_size=1, shuffle=False, num_workers=2,
         collate_fn=utils.collate_fn)
 
     model = fasterrcnn_resnet50_fpn(pretrained=False, progress=True, num_classes=num_classes, pretrained_backbone=True)
